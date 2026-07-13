@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusMenu: StatusMenuController?
     private let onboarding = OnboardingWindowController()
+    private let overlay = OverlayController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement already hides the Dock icon; ensure accessory policy.
@@ -24,6 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         onboarding.onGranted = { NSLog("[TilingGlass] Accessibility access granted") }
         onboarding.showIfNeeded()
+
+        // Smoke-test hook: TILINGGLASS_DEBUG_OVERLAY=1 shows the glass overlay on
+        // launch so it can be verified without clicking the menu.
+        if ProcessInfo.processInfo.environment["TILINGGLASS_DEBUG_OVERLAY"] == "1" {
+            toggleOverlayPreview()
+            NSLog("[TilingGlass] debug overlay shown: \(overlay.isShown)")
+        }
     }
 
     // MARK: - Debug actions (temporary, replaced as phases land)
@@ -33,7 +41,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .moveFocusedLeftHalf:
             moveFocusedToLeftHalf()
         case .toggleOverlayPreview:
-            NSLog("[TilingGlass] toggleOverlayPreview not yet wired")
+            toggleOverlayPreview()
+        }
+    }
+
+    /// Phase 4 validation: shows/hides the glass zone overlay on every screen
+    /// with the current per-screen layout, highlighting the first zone so the
+    /// glass rendering is visible.
+    private func toggleOverlayPreview() {
+        if overlay.isShown {
+            overlay.hide()
+            return
+        }
+        let screens = screenService.screens
+        overlay.show(screens: screens, gaps: settings.gaps) { [layoutStore] screen in
+            layoutStore.layout(forScreen: screen.uuid)
+        }
+        // Highlight one zone so both the plain and accent-tinted glass are visible.
+        if let first = screens.first {
+            overlay.highlight(screenUUID: first.uuid, tiles: [0])
         }
     }
 
