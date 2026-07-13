@@ -40,6 +40,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         onboarding.showIfNeeded()
 
+        // Displays changing (resolution, arrangement, connect/disconnect) can
+        // invalidate overlay panel frames — tear them down so the next drag
+        // rebuilds against the current arrangement.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.overlay.hide() }
+        }
+
         // Smoke-test hook: TILINGGLASS_DEBUG_OVERLAY=1 shows the glass overlay on
         // launch so it can be verified without clicking the menu.
         if ProcessInfo.processInfo.environment["TILINGGLASS_DEBUG_OVERLAY"] == "1" {

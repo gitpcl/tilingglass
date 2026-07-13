@@ -15,11 +15,24 @@ struct AccessibilityElement {
     init(_ raw: AXUIElement) { self.raw = raw }
 
     static var systemWide: AccessibilityElement {
-        AccessibilityElement(AXUIElementCreateSystemWide())
+        let element = AccessibilityElement(AXUIElementCreateSystemWide())
+        // Hit-testing under the cursor must stay snappy during a drag.
+        element.setMessagingTimeout(0.5)
+        return element
     }
 
     static func application(pid: pid_t) -> AccessibilityElement {
-        AccessibilityElement(AXUIElementCreateApplication(pid))
+        let element = AccessibilityElement(AXUIElementCreateApplication(pid))
+        // Bound how long a call to an app can block us — an unresponsive app
+        // must not freeze window moves. Applies to all messages to this element.
+        element.setMessagingTimeout(1.0)
+        return element
+    }
+
+    /// Sets the per-element messaging timeout (seconds) so calls to a hung app
+    /// return an error instead of blocking indefinitely.
+    func setMessagingTimeout(_ seconds: Float) {
+        AXUIElementSetMessagingTimeout(raw, seconds)
     }
 
     // MARK: - Permission
