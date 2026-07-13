@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay: overlay, engine: engine, layoutStore: layoutStore
     )
     private let dragMonitor = DragMonitor()
+    private lazy var hotkeys = HotkeyManager(engine: engine)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement already hides the Dock icon; ensure accessory policy.
@@ -30,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu = menu
 
         dragMonitor.onEvent = { [weak self] event in self?.dragCoordinator.handle(event) }
+        hotkeys.register()
         startMonitoringIfTrusted()
 
         onboarding.onGranted = { [weak self] in

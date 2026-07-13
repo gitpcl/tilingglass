@@ -1,8 +1,9 @@
+import KeyboardShortcuts
 import SwiftUI
 import TilingCore
 
-/// The Settings window. Phase 1 shows gaps and modifier choices; keyboard
-/// shortcut recorders and launch-at-login arrive in Phase 6.
+/// The Settings window: activation modifiers, gaps, keyboard shortcuts, and
+/// launch-at-login.
 struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var layoutStore: LayoutStore
@@ -20,6 +21,9 @@ struct SettingsView: View {
                         Text(choice.displayName).tag(choice)
                     }
                 }
+                Text("Tip: start dragging a window first, then hold the activation key.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Gaps") {
@@ -30,8 +34,22 @@ struct SettingsView: View {
                     Text("Outer gap: \(Int(settings.outerGap)) pt")
                 }
             }
+
+            Section("Keyboard") {
+                KeyboardShortcuts.Recorder("Move window left", name: .moveTileLeft)
+                KeyboardShortcuts.Recorder("Move window right", name: .moveTileRight)
+                KeyboardShortcuts.Recorder("Move window up", name: .moveTileUp)
+                KeyboardShortcuts.Recorder("Move window down", name: .moveTileDown)
+            }
+
+            Section {
+                Toggle("Launch at login", isOn: Binding(
+                    get: { settings.launchAtLogin },
+                    set: { settings.launchAtLogin = $0 }
+                ))
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 320)
+        .frame(width: 460, height: 520)
     }
 }

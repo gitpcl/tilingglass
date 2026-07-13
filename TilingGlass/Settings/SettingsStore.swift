@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import ServiceManagement
 import TilingCore
 
 /// A modifier key the user can pick for activation or span selection.
@@ -69,6 +70,23 @@ final class SettingsStore: ObservableObject {
 
     var gaps: Gaps {
         Gaps(inner: CGFloat(innerGap), outer: CGFloat(outerGap))
+    }
+
+    /// Whether the app is registered to launch at login. Backed directly by
+    /// `SMAppService`, which is the source of truth.
+    var launchAtLogin: Bool {
+        get { SMAppService.mainApp.status == .enabled }
+        set {
+            do {
+                if newValue {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                NSLog("[TilingGlass] launch-at-login toggle failed: \(error)")
+            }
+        }
     }
 
     // MARK: - Per-screen layout selection
