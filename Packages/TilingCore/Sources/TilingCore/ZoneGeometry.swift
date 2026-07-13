@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import CoreGraphics
 
 /// Inner and outer spacing applied when resolving tiles to pixel rects.
@@ -9,8 +11,10 @@ public struct Gaps: Equatable, Sendable {
     public var outer: CGFloat
 
     public init(inner: CGFloat, outer: CGFloat) {
-        self.inner = inner
-        self.outer = outer
+        // Negative gaps would expand tiles past their zone (or into each other)
+        // in ways nothing downstream expects; clamp at the boundary.
+        self.inner = max(0, inner)
+        self.outer = max(0, outer)
     }
 
     public static let zero = Gaps(inner: 0, outer: 0)
@@ -62,19 +66,23 @@ public enum ZoneGeometry {
         let rightInset = inset(atFraction: nx + nw, boundary: 1, gaps: gaps)
         let bottomInset = inset(atFraction: ny + nh, boundary: 1, gaps: gaps)
 
-        let rect = CGRect(
-            x: px + leftInset,
-            y: py + topInset,
-            width: pw - leftInset - rightInset,
-            height: ph - topInset - bottomInset
-        )
-        // Guard against pathological gap/screen combinations collapsing a tile.
-        return CGRect(
-            x: rect.origin.x,
-            y: rect.origin.y,
-            width: max(1, rect.width),
-            height: max(1, rect.height)
-        )
+        // Computed on the *signed* raw values, not `CGRect.width`/`.height` —
+        // those getters return the absolute value, which would silently defeat
+        // the floor below whenever gaps exceed the tile's own pixel size.
+        let rawWidth = pw - leftInset - rightInset
+        let rawHeight = ph - topInset - bottomInset
+        let width = max(1, rawWidth)
+        let height = max(1, rawHeight)
+
+        // Guard against pathological gap/screen combinations collapsing (or
+        // inverting) a tile. In the normal case the raw size is already >= 1 and
+        // these branches are no-ops; only when gaps exceed the tile's pixel size
+        // do we fall back to a minimal rect centered on the tile's own pixel
+        // footprint, rather than one offset by the (now meaningless) insets.
+        let x = rawWidth >= 1 ? px + leftInset : px + (pw - width) / 2
+        let y = rawHeight >= 1 ? py + topInset : py + (ph - height) / 2
+
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     private static func inset(atFraction fraction: Double, boundary: Double, gaps: Gaps) -> CGFloat {

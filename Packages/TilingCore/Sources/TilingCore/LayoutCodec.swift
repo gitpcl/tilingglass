@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import Foundation
 
 /// Reads and writes layouts in the Tiling Shell JSON format so files can be
@@ -9,6 +11,10 @@ public enum LayoutCodec {
     public enum DecodingError: Error, Equatable, CustomStringConvertible {
         case notJSON
         case wrongShape
+        /// The top-level shape (object or array) was correct, but decoding it
+        /// into `Layout`/`Tile` failed — e.g. a missing key or wrong-typed field
+        /// on one element. Carries the underlying decoder's own description.
+        case malformed(reason: String)
         case empty
         case duplicateID(String)
         case invalidLayout(id: String, reason: String)
@@ -19,6 +25,8 @@ public enum LayoutCodec {
                 return "The file is not valid JSON."
             case .wrongShape:
                 return "Expected a layout object or an array of layout objects."
+            case let .malformed(reason):
+                return "Could not read the layout data: \(reason)"
             case .empty:
                 return "The file contained no layouts."
             case let .duplicateID(id):
@@ -34,21 +42,34 @@ public enum LayoutCodec {
     /// Accepts either a top-level array of layouts or a single layout object.
     /// Every decoded layout is validated; duplicate ids are rejected.
     public static func decode(_ data: Data) throws -> [Layout] {
-        let decoder = JSONDecoder()
+        // Determine the top-level shape first (object vs array vs neither) via
+        // JSONSerialization, then decode with the matching decoder and surface
+        // *its* real error. Trying `[Layout].self` then `Layout.self` with
+        // `try?` (the previous approach) discarded the actual decoding failure
+        // whenever the shape was right but a field inside it was wrong — e.g. an
+        // array with one malformed element reported the misleading "expected an
+        // object or array" instead of the real problem.
+        let topLevel: Any
+        do {
+            topLevel = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        } catch {
+            throw DecodingError.notJSON
+        }
 
+        let decoder = JSONDecoder()
         let layouts: [Layout]
-        if let array = try? decoder.decode([Layout].self, from: data) {
-            layouts = array
-        } else if let single = try? decoder.decode(Layout.self, from: data) {
-            layouts = [single]
-        } else {
-            // Distinguish "not JSON at all" from "JSON of the wrong shape" for a
-            // clearer error message. `.fragmentsAllowed` lets a bare value like
-            // `42` parse as valid-but-wrong-shape rather than not-JSON.
-            if (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) == nil {
-                throw DecodingError.notJSON
+        do {
+            if topLevel is [Any] {
+                layouts = try decoder.decode([Layout].self, from: data)
+            } else if topLevel is [String: Any] {
+                layouts = [try decoder.decode(Layout.self, from: data)]
+            } else {
+                throw DecodingError.wrongShape
             }
-            throw DecodingError.wrongShape
+        } catch let error as DecodingError {
+            throw error
+        } catch {
+            throw DecodingError.malformed(reason: String(describing: error))
         }
 
         if layouts.isEmpty { throw DecodingError.empty }

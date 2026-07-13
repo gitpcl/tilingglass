@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import AppKit
+import SwiftUI
 import TilingCore
 import UniformTypeIdentifiers
 
@@ -10,8 +13,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let layoutStore: LayoutStore
     private let screenService: ScreenService
 
-    /// Called when the user wants to open Settings.
-    var onOpenSettings: (() -> Void)?
     /// Called with a debug action identifier (temporary, for phase validation).
     var onDebugAction: ((DebugAction) -> Void)?
 
@@ -58,9 +59,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         addDebugItems(to: menu)
 
         menu.addItem(.separator())
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self
-        menu.addItem(settings)
+        addSettingsItem(to: menu)
 
         let quit = NSMenuItem(title: "Quit TilingGlass", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
@@ -96,6 +95,20 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(exportItem)
     }
 
+    /// Hosts a `SettingsLink` as the menu item's view, rather than an
+    /// `NSMenuItem` action that opens Settings via
+    /// `Selector(("showSettingsWindow:"))`. That selector resolves through the
+    /// key-window responder chain, which an accessory (menu-bar-only) app
+    /// typically doesn't have — `SettingsLink` uses SwiftUI's own Settings-scene
+    /// action instead, which doesn't depend on responder-chain lookup.
+    private func addSettingsItem(to menu: NSMenu) {
+        let item = NSMenuItem()
+        let hosting = NSHostingView(rootView: SettingsMenuItemView())
+        hosting.frame = NSRect(x: 0, y: 0, width: 220, height: 22)
+        item.view = hosting
+        menu.addItem(item)
+    }
+
     private func addDebugItems(to menu: NSMenu) {
         let debugHeader = NSMenuItem(title: "Debug", action: nil, keyEquivalent: "")
         debugHeader.isEnabled = false
@@ -115,10 +128,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func selectLayout(_ sender: NSMenuItem) {
         guard let selection = sender.representedObject as? LayoutSelection else { return }
         layoutStore.selectLayout(id: selection.layoutID, forScreen: selection.screenUUID)
-    }
-
-    @objc private func openSettings() {
-        onOpenSettings?()
     }
 
     @objc private func importLayouts() {
@@ -171,5 +180,20 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private struct LayoutSelection {
         let screenUUID: String
         let layoutID: String
+    }
+}
+
+/// A `NSMenuItem.view` row that opens the app's Settings scene. `SettingsLink`
+/// is the SwiftUI-native, responder-chain-independent way to do this — see
+/// ``StatusMenuController/addSettingsItem(to:)``.
+private struct SettingsMenuItemView: View {
+    var body: some View {
+        SettingsLink {
+            Text("Settings…")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 3)
     }
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import AppKit
 import SwiftUI
 import TilingCore
@@ -26,7 +28,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         let menu = StatusMenuController(layoutStore: layoutStore, screenService: screenService)
-        menu.onOpenSettings = { Self.openSettingsWindow() }
         menu.onDebugAction = { [weak self] action in self?.handleDebugAction(action) }
         statusMenu = menu
 
@@ -64,6 +65,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startMonitoringIfTrusted() {
         guard AccessibilityElement.isTrusted, !dragMonitor.isRunning else { return }
         dragMonitor.start()
+        // `flagsChanged` only fires on transitions — if the activation modifier
+        // is already held when monitoring starts (resting on it at launch, or
+        // restarting monitoring right after granting AX access mid-gesture),
+        // there's no prior "release" to produce a future "press," so the
+        // overlay would never appear until the key is released and re-pressed.
+        // Seed the tracked state from reality so that case still works.
+        dragCoordinator.seedModifierFlags(NSEvent.modifierFlags)
         NSLog("[TilingGlass] drag monitoring started")
     }
 
@@ -116,17 +124,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let target = ZoneGeometry.resolve(leftHalf, in: screen.axVisibleFrame, gaps: settings.gaps)
         let result = WindowMover.move(window, to: target)
         NSLog("[TilingGlass] moveFocusedToLeftHalf on \(screen.localizedName) → \(String(describing: result))")
-    }
-
-    // MARK: - Settings window
-
-    private static func openSettingsWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        // The standard Settings scene selector differs across SDKs; try both.
-        if #available(macOS 14, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
     }
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import AppKit
 
 /// A raw input event relevant to window dragging. Mouse locations are in AppKit

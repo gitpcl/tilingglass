@@ -14,7 +14,7 @@ compatible with Tiling Shell's JSON import/export format.
 
 - Menu-bar app with a per-screen layout picker
 - Custom tiling layouts, compatible with Tiling Shell's JSON format
-- Four built-in layouts (Equal split, Thirds, 2×2 Grid, Focus)
+- Four built-in layouts (Equal split, Thirds, 2x2 Grid, Focus)
 - Tiling system: hold a modifier while dragging to show zones and snap into them
 - Span multiple adjacent zones with a second modifier
 - Keyboard tiling: move the focused window between zones and across monitors
@@ -28,7 +28,7 @@ shell over the Accessibility API for the parts that touch live windows.
 
 | Layer | Location | Notes |
 |-------|----------|-------|
-| `TilingCore` | `Packages/TilingCore` | Pure Swift: layout model, JSON codec, zone geometry, hit-testing, directional navigation, coordinate conversion. No AppKit. 100% unit-tested. |
+| `TilingCore` | `Packages/TilingCore` | Pure Swift: layout model, JSON codec, zone geometry, hit-testing, directional navigation, coordinate conversion. No AppKit. Covered by unit tests (`swift test --package-path Packages/TilingCore`). |
 | App shell | `TilingGlass/` | Menu bar, onboarding, Accessibility window driver, drag input, glass overlay, tiling engine, settings. |
 
 ## Building
@@ -53,10 +53,25 @@ swift test --package-path Packages/TilingCore
 
 `project.yml` pins a code-signing identity by SHA-1 so the Accessibility
 permission survives rebuilds (an ad-hoc signature changes each build and resets
-the grant). Replace the hash with one of your own:
+the grant). That identity is machine-specific — on any machine other than the
+one it was pinned on, the build will fail signing outright. Fix it one of two
+ways:
+
+**Permanent (edit the tracked file):** replace the SHA-1 in `project.yml`
+(`CODE_SIGN_IDENTITY[sdk=macosx*]`) with one of your own, found via:
 
 ```sh
 security find-identity -v -p codesigning
+```
+
+**One-off (no file edit, nothing to accidentally commit):** override signing
+on the command line. Accessibility permission will need to be re-granted after
+an ad-hoc build, and again on every subsequent ad-hoc rebuild:
+
+```sh
+xcodebuild -project TilingGlass.xcodeproj -scheme TilingGlass \
+  -configuration Debug -derivedDataPath build build \
+  CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="-" DEVELOPMENT_TEAM=""
 ```
 
 If the Accessibility grant ever gets wedged during development:

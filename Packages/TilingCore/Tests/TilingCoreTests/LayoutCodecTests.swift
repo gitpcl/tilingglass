@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import XCTest
 @testable import TilingCore
 
@@ -122,5 +124,33 @@ final class LayoutCodecTests: XCTestCase {
         """
         let layouts = try LayoutCodec.decode(Data(noGroups.utf8))
         XCTAssertEqual(layouts.first?.tiles.first?.groups, [])
+    }
+
+    /// Regression: an array whose top-level shape is correct but contains one
+    /// malformed element (wrong field type) used to be swallowed by `try?` and
+    /// misreported as "expected an object or array" — actively misleading for a
+    /// hand-editing user, since the real problem is a single field.
+    func testMalformedFieldInArrayElementSurfacesRealError() {
+        let json = """
+        [ {"id":"Good","tiles":[{"x":0,"y":0,"width":1,"height":1,"groups":[]}]},
+          {"id":"Bad","tiles":[{"x":0,"y":0,"width":"oops","height":1,"groups":[]}]} ]
+        """
+        XCTAssertThrowsError(try LayoutCodec.decode(Data(json.utf8))) { error in
+            guard case .malformed = error as? LayoutCodec.DecodingError else {
+                return XCTFail("Expected .malformed, got \(error)")
+            }
+        }
+    }
+
+    func testMissingRequiredFieldSurfacesRealError() {
+        // "height" is missing entirely, not just wrong-typed.
+        let json = """
+        {"id":"Bad","tiles":[{"x":0,"y":0,"width":1,"groups":[]}]}
+        """
+        XCTAssertThrowsError(try LayoutCodec.decode(Data(json.utf8))) { error in
+            guard case .malformed = error as? LayoutCodec.DecodingError else {
+                return XCTFail("Expected .malformed, got \(error)")
+            }
+        }
     }
 }

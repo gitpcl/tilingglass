@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import XCTest
 @testable import TilingCore
 
@@ -54,6 +56,41 @@ final class ZoneGeometryTests: XCTestCase {
 
     func testSingleTileLayout() {
         let rect = ZoneGeometry.resolve(Tile(x: 0, y: 0, width: 1, height: 1), in: screen, gaps: .zero)
+        XCTAssertEqual(rect, screen)
+    }
+
+    /// Regression for a bug where `CGRect.width`/`.height` (which return the
+    /// *absolute value* of a negative computed size) defeated the `max(1, ...)`
+    /// floor, letting a tile whose gaps exceed its own pixel size resolve to a
+    /// large rect positioned outside the tile's own footprint.
+    func testGapsExceedingTileSizeCollapseNearTileFootprint() {
+        // A tiny 10x8pt tile (1% of a 1000x800 screen) with a 100pt inner gap:
+        // each edge would be inset by 50pt, far exceeding the tile itself.
+        let tile = Tile(x: 0.5, y: 0.5, width: 0.01, height: 0.01)
+        let rect = ZoneGeometry.resolve(tile, in: screen, gaps: Gaps(inner: 100, outer: 10))
+
+        // Must not silently invert into a large, mispositioned rect.
+        XCTAssertLessThanOrEqual(rect.width, 10)
+        XCTAssertLessThanOrEqual(rect.height, 8)
+        XCTAssertGreaterThanOrEqual(rect.width, 1)
+        XCTAssertGreaterThanOrEqual(rect.height, 1)
+
+        // The fallback rect must stay within (or immediately at) the tile's own
+        // pixel footprint: x in [500, 510], y in [400, 408].
+        XCTAssertGreaterThanOrEqual(rect.minX, 500 - 0.001)
+        XCTAssertLessThanOrEqual(rect.maxX, 510 + 0.001)
+        XCTAssertGreaterThanOrEqual(rect.minY, 400 - 0.001)
+        XCTAssertLessThanOrEqual(rect.maxY, 408 + 0.001)
+    }
+
+    func testNegativeGapsAreClampedToZero() {
+        // Gaps is a public boundary type; negative values (e.g. from a
+        // corrupted defaults value) must not reach the geometry math.
+        let gaps = Gaps(inner: -40, outer: -20)
+        XCTAssertEqual(gaps.inner, 0)
+        XCTAssertEqual(gaps.outer, 0)
+
+        let rect = ZoneGeometry.resolve(Tile(x: 0, y: 0, width: 1, height: 1), in: screen, gaps: gaps)
         XCTAssertEqual(rect, screen)
     }
 }

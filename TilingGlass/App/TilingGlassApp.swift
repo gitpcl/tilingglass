@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import SwiftUI
 
 /// Menu-bar-only agent app. All lifecycle and UI wiring lives in

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import AppKit
 import TilingCore
 
@@ -44,13 +46,15 @@ final class ScreenService {
 
     /// The screen whose AppKit visible area contains `appKitPoint` (e.g. the
     /// cursor). Falls back to the full display frame (so points in the menu-bar
-    /// strip still resolve), then to the primary screen.
+    /// strip still resolve), then to the primary screen. Uses inclusive bounds
+    /// so a cursor at the exact top/right pixel of a display still resolves
+    /// (`CGRect.contains` is half-open on the max edges).
     func screen(atAppKitPoint appKitPoint: CGPoint) -> ScreenInfo? {
         let all = screens
-        if let hit = all.first(where: { $0.appKitVisibleFrame.contains(appKitPoint) }) {
+        if let hit = all.first(where: { $0.appKitVisibleFrame.containsInclusive(appKitPoint) }) {
             return hit
         }
-        if let nsScreen = NSScreen.screens.first(where: { $0.frame.contains(appKitPoint) }) {
+        if let nsScreen = NSScreen.screens.first(where: { $0.frame.containsInclusive(appKitPoint) }) {
             let uuid = Self.uuid(of: nsScreen)
             if let match = all.first(where: { $0.uuid == uuid }) { return match }
         }
@@ -73,5 +77,15 @@ final class ScreenService {
             return "screen-\(displayID)"
         }
         return string as String
+    }
+}
+
+extension CGRect {
+    /// Like `contains(_:)` but inclusive of the max-X/max-Y edges. Screen and
+    /// zone boundaries are physical pixels a cursor can rest exactly on; the
+    /// standard half-open `contains` would treat that boundary pixel as
+    /// outside every rect that ends there.
+    func containsInclusive(_ point: CGPoint) -> Bool {
+        point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
     }
 }

@@ -1,0 +1,36 @@
+excluded:
+  - build
+  - TilingGlass.xcodeproj
+  - Packages/TilingCore/.build
+
+line_length:
+  warning: 120
+  error: 200
+
+function_body_length:
+  warning: 60
+  error: 100
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 400
+  error: 800
+
+identifier_name:
+  min_length: 2
+  excluded:
+    - id
+    - x
+    - y
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_not_nil
+  - fatal_error_message
+  - force_unwrapping
+  - redundant_nil_coalescing
+  - unneeded_parentheses_in_closure_argument

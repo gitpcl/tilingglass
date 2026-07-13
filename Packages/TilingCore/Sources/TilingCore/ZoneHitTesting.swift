@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import CoreGraphics
 
 /// Pure geometry for deciding which tile the cursor is over and, when the span

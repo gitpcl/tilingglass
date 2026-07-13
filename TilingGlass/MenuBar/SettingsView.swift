@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import KeyboardShortcuts
 import SwiftUI
 import TilingCore
@@ -16,8 +18,12 @@ struct SettingsView: View {
                         Text(choice.displayName).tag(choice)
                     }
                 }
+                // The span picker excludes whichever key is bound to activation:
+                // picking the same key for both would make the overlay
+                // permanently "spanning" for as long as it's shown, since both
+                // roles would be reading the same held-down bit.
                 Picker("Span multiple zones with", selection: $settings.spanModifier) {
-                    ForEach(ModifierChoice.allCases) { choice in
+                    ForEach(ModifierChoice.allCases.filter { $0 != settings.activationModifier }) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }

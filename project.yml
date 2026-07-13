@@ -26,7 +26,12 @@ packages:
     path: Packages/TilingCore
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
-    from: 2.0.0
+    # Pinned exactly rather than `from:` — the resolved lockfile lives inside
+    # the gitignored, regenerated .xcodeproj (XcodeGen has no mechanism to
+    # commit it outside that directory), so `from:` would let every fresh
+    # clone silently float to whatever the latest 2.x happens to be at build
+    # time. Bump this deliberately when upgrading.
+    exactVersion: 2.4.0
 
 targets:
   TilingGlass:
@@ -49,6 +54,8 @@ targets:
         NSHumanReadableCopyright: "GPL-3.0. Copyright © 2026 Pedro Lopes."
         NSAccessibilityUsageDescription: "TilingGlass needs Accessibility access to move and resize windows into layout zones."
         LSMinimumSystemVersion: "26.0"
+        LSApplicationCategoryType: "public.app-category.productivity"
+        CFBundleIconName: AppIcon
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.pedrolopes.tilingglass
@@ -57,3 +64,4 @@ targets:
         PROVISIONING_PROFILE_SPECIFIER: ""
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_STRICT_CONCURRENCY: complete
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

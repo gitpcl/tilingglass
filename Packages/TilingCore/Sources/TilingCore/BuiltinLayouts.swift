@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import Foundation
 
 /// The layouts shipped with TilingGlass. These mirror common Tiling Shell

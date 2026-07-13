@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import CoreGraphics
 
 /// The four directions a window can be moved by keyboard.
@@ -60,11 +62,12 @@ public enum DirectionalNavigation {
             return nil
         }
 
-        let reference = referencePoint(
+        let referenceRect = referenceRect(
             windowFrame: windowFrame, currentTileIndex: currentTileIndex, screen: current
         )
+        let reference = CGPoint(x: referenceRect.midX, y: referenceRect.midY)
 
-        if let tile = nearestTile(in: current, from: reference, direction: direction, excluding: currentTileIndex) {
+        if let tile = nearestTile(in: current, from: referenceRect, direction: direction, excluding: currentTileIndex) {
             return Destination(screenID: current.id, tileIndex: tile)
         }
 
@@ -81,30 +84,64 @@ public enum DirectionalNavigation {
 
     // MARK: - Reference & candidate resolution
 
-    private static func referencePoint(
+    /// The rect used to judge alignment and distance for the current move: the
+    /// window's current tile if known, otherwise its raw on-screen frame.
+    private static func referenceRect(
         windowFrame: CGRect, currentTileIndex: Int?, screen: ScreenSlot
-    ) -> CGPoint {
+    ) -> CGRect {
         if let index = currentTileIndex, screen.layout.tiles.indices.contains(index) {
-            return centerPixel(of: screen.layout.tiles[index], in: screen.frame)
+            return pixelRect(of: screen.layout.tiles[index], in: screen.frame)
         }
-        return CGPoint(x: windowFrame.midX, y: windowFrame.midY)
+        return windowFrame
     }
 
+    /// Finds the best candidate tile in `direction` from `reference`.
+    ///
+    /// Candidates that share a row (for left/right) or column (for up/down)
+    /// with the reference — i.e. their cross-axis extent overlaps it — are
+    /// preferred over any that don't, and are ranked purely by primary-axis
+    /// distance among themselves. This mirrors what a user expects "left"/
+    /// "right"/"up"/"down" to mean: stay in the same visual band. Only when no
+    /// tile overlaps the reference's band does the search fall back to the
+    /// nearest tile by combined distance, so a sparse/asymmetric layout still
+    /// has somewhere to go.
     private static func nearestTile(
-        in screen: ScreenSlot, from reference: CGPoint, direction: TileDirection, excluding: Int?
+        in screen: ScreenSlot, from reference: CGRect, direction: TileDirection, excluding: Int?
     ) -> Int? {
-        var best: (index: Int, score: CGFloat)?
+        let referenceCenter = CGPoint(x: reference.midX, y: reference.midY)
+        var bestAligned: (index: Int, primary: CGFloat)?
+        var bestFallback: (index: Int, score: CGFloat)?
+
         for (index, tile) in screen.layout.tiles.enumerated() {
             if index == excluding { continue }
-            let center = centerPixel(of: tile, in: screen.frame)
-            let (primary, perpendicular) = components(from: reference, to: center, direction: direction)
+            let rect = pixelRect(of: tile, in: screen.frame)
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let (primary, perpendicular) = components(from: referenceCenter, to: center, direction: direction)
             guard primary > epsilon else { continue }
-            let score = primary + perpendicular
-            if best == nil || score < best!.score {
-                best = (index, score)
+
+            if overlapsCrossAxis(rect, reference, direction: direction) {
+                if bestAligned == nil || primary < bestAligned!.primary {
+                    bestAligned = (index, primary)
+                }
+            } else {
+                let score = primary + perpendicular
+                if bestFallback == nil || score < bestFallback!.score {
+                    bestFallback = (index, score)
+                }
             }
         }
-        return best?.index
+        return bestAligned?.index ?? bestFallback?.index
+    }
+
+    /// Whether `a` and `b` overlap on the axis perpendicular to `direction` —
+    /// i.e. whether they're in the same row (left/right) or column (up/down).
+    private static func overlapsCrossAxis(_ a: CGRect, _ b: CGRect, direction: TileDirection) -> Bool {
+        switch direction {
+        case .left, .right:
+            return a.minY < b.maxY && a.maxY > b.minY
+        case .up, .down:
+            return a.minX < b.maxX && a.maxX > b.minX
+        }
     }
 
     /// Splits the vector from `a` to `b` into its component along `direction`
@@ -123,18 +160,33 @@ public enum DirectionalNavigation {
 
     // MARK: - Cross-monitor
 
+    /// Finds the screen in `direction` from `current`.
+    ///
+    /// Like ``nearestTile``, screens whose frame overlaps `current`'s frame on
+    /// the cross axis (i.e. actually sit in the same row/column of the
+    /// arrangement) are preferred and ranked by primary-axis distance alone.
+    /// Without this, an axis-distance-only comparison can prefer a small,
+    /// far-off-to-the-side monitor over the monitor that's genuinely adjacent,
+    /// in an irregular (non-grid) multi-monitor arrangement.
     private static func adjacentScreen(
         to current: ScreenSlot, direction: TileDirection, screens: [ScreenSlot]
     ) -> ScreenSlot? {
-        var best: (screen: ScreenSlot, distance: CGFloat)?
+        var bestAligned: (screen: ScreenSlot, distance: CGFloat)?
+        var bestFallback: (screen: ScreenSlot, distance: CGFloat)?
+
         for screen in screens where screen.id != current.id {
             guard isInDirection(screen.frame, from: current.frame, direction: direction) else { continue }
             let distance = centerDistanceAlongAxis(screen.frame, current.frame, direction: direction)
-            if best == nil || distance < best!.distance {
-                best = (screen, distance)
+
+            if overlapsCrossAxis(screen.frame, current.frame, direction: direction) {
+                if bestAligned == nil || distance < bestAligned!.distance {
+                    bestAligned = (screen, distance)
+                }
+            } else if bestFallback == nil || distance < bestFallback!.distance {
+                bestFallback = (screen, distance)
             }
         }
-        return best?.screen
+        return bestAligned?.screen ?? bestFallback?.screen
     }
 
     private static func isInDirection(_ frame: CGRect, from origin: CGRect, direction: TileDirection) -> Bool {
@@ -210,11 +262,6 @@ public enum DirectionalNavigation {
             width: CGFloat(tile.width) * frame.width,
             height: CGFloat(tile.height) * frame.height
         )
-    }
-
-    private static func centerPixel(of tile: Tile, in frame: CGRect) -> CGPoint {
-        let rect = pixelRect(of: tile, in: frame)
-        return CGPoint(x: rect.midX, y: rect.midY)
     }
 
     private static func clamp(_ value: CGFloat, _ low: CGFloat, _ high: CGFloat) -> CGFloat {

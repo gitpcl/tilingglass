@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import AppKit
 import SwiftUI
 
@@ -8,7 +10,7 @@ import SwiftUI
 /// is the *only* timer in the app and it stops the moment access is granted or
 /// the window closes, so the idle app never polls.
 @MainActor
-final class OnboardingWindowController {
+final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var pollTimer: Timer?
 
@@ -40,6 +42,11 @@ final class OnboardingWindowController {
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
+        // The standard red close button calls AppKit's own `close()` directly,
+        // bypassing `finish`/our `close()` method entirely. Without a delegate
+        // to catch that, the poll timer below would keep firing every second
+        // for the rest of the app's lifetime instead of stopping.
+        window.delegate = self
         self.window = window
 
         window.makeKeyAndOrderFront(nil)
@@ -68,6 +75,12 @@ final class OnboardingWindowController {
     private func close() {
         stopPolling()
         window?.close()
+    }
+
+    // MARK: - NSWindowDelegate
+
+    nonisolated func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated { stopPolling() }
     }
 
     private static func openDesktopAndDockSettings() {

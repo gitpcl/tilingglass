@@ -4,7 +4,6 @@ build/
 DerivedData/
 .build/
 *.xcworkspace
-!default.xcworkspace
 
 # macOS
 .DS_Store

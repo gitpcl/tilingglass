@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import Foundation
 
 /// A single zone within a layout, expressed in normalized coordinates where the
@@ -71,6 +73,7 @@ public struct Layout: Codable, Equatable, Identifiable, Sendable {
 public enum LayoutValidationError: Error, Equatable, CustomStringConvertible {
     case emptyID
     case noTiles
+    case notFinite(tileIndex: Int, field: String)
     case fractionOutOfRange(tileIndex: Int, field: String, value: Double)
     case nonPositiveSize(tileIndex: Int, field: String, value: Double)
 
@@ -80,6 +83,8 @@ public enum LayoutValidationError: Error, Equatable, CustomStringConvertible {
             return "Layout id must not be empty."
         case .noTiles:
             return "Layout must contain at least one tile."
+        case let .notFinite(index, field):
+            return "Tile \(index) has a non-finite \(field) (NaN or infinite)."
         case let .fractionOutOfRange(index, field, value):
             return "Tile \(index) has \(field)=\(value), which is outside the allowed 0...1 range."
         case let .nonPositiveSize(index, field, value):
@@ -94,7 +99,18 @@ extension Layout {
     static let fractionTolerance = 1e-6
 
     /// Validates that the layout is well-formed: non-empty id, at least one
-    /// tile, and every tile within the normalized coordinate space.
+    /// tile, and every tile within the normalized coordinate space (finite,
+    /// non-negative size, not extending past the screen).
+    ///
+    /// Deliberately **not** checked: tile overlap or full-screen coverage.
+    /// Tiling Shell layouts aren't required to tile the screen exactly (see the
+    /// "Focus" built-in, whose side columns don't need to touch), and rejecting
+    /// overlap would break legitimate hand-authored layouts with intentionally
+    /// redundant zones. The tradeoff: an overlapping tile can become
+    /// unreachable by click/hit-testing (the earlier tile in array order always
+    /// wins ties) or by keyboard navigation (identical centers never satisfy
+    /// the "primary > epsilon" gate in `DirectionalNavigation`) — a silently
+    /// degraded layout, not a crash.
     public func validate() throws {
         if id.isEmpty { throw LayoutValidationError.emptyID }
         if tiles.isEmpty { throw LayoutValidationError.noTiles }
@@ -102,6 +118,16 @@ extension Layout {
         let lower = -Layout.fractionTolerance
         let upper = 1 + Layout.fractionTolerance
         for (index, tile) in tiles.enumerated() {
+            // NaN/infinite values compare false against every bound below, so
+            // they must be rejected explicitly before any range check runs —
+            // otherwise a NaN tile silently passes validation and poisons every
+            // downstream geometry calculation.
+            for (field, value) in [("x", tile.x), ("y", tile.y), ("width", tile.width), ("height", tile.height)] {
+                if !value.isFinite {
+                    throw LayoutValidationError.notFinite(tileIndex: index, field: field)
+                }
+            }
+
             for (field, value) in [("x", tile.x), ("y", tile.y)] {
                 if value < lower || value > upper {
                     throw LayoutValidationError.fractionOutOfRange(tileIndex: index, field: field, value: value)

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import SwiftUI
 
 /// Draws a screen's zones as Liquid Glass tiles. Zone rects are absolute,

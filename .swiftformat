@@ -1,0 +1,13 @@
+--swiftversion 6.0
+--indent 4
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen same-line
+--commas inline
+--trimwhitespace always
+--voidtype void
+--self remove
+--importgrouping testable-last
+--exclude build,TilingGlass.xcodeproj,Packages/TilingCore/.build

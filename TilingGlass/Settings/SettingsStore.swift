@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import AppKit
 import Combine
 import ServiceManagement
@@ -37,8 +39,14 @@ final class SettingsStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.activationModifier = Self.readModifier(defaults, Keys.activationModifier) ?? .control
-        self.spanModifier = Self.readModifier(defaults, Keys.spanModifier) ?? .option
+        let activation = Self.readModifier(defaults, Keys.activationModifier) ?? .control
+        var span = Self.readModifier(defaults, Keys.spanModifier) ?? .option
+        // Guard against a corrupted/hand-edited defaults value colliding with
+        // activation — see the didSet below for why that combination breaks
+        // single-tile selection.
+        if span == activation { span = Self.fallbackSpanModifier(avoiding: activation) }
+        self.activationModifier = activation
+        self.spanModifier = span
         self.innerGap = defaults.object(forKey: Keys.innerGap) as? Double ?? 8
         self.outerGap = defaults.object(forKey: Keys.outerGap) as? Double ?? 8
         self.onboardingCompleted = defaults.bool(forKey: Keys.onboardingCompleted)
@@ -47,7 +55,16 @@ final class SettingsStore: ObservableObject {
     // MARK: - Published settings
 
     @Published var activationModifier: ModifierChoice {
-        didSet { defaults.set(activationModifier.rawValue, forKey: Keys.activationModifier) }
+        didSet {
+            defaults.set(activationModifier.rawValue, forKey: Keys.activationModifier)
+            // The Settings UI already excludes this choice from the span
+            // picker, but re-picking activation to match the current span
+            // needs the same correction — the two must never be equal, since
+            // the drag overlay reads them as independent bits.
+            if spanModifier == activationModifier {
+                spanModifier = Self.fallbackSpanModifier(avoiding: activationModifier)
+            }
+        }
     }
 
     @Published var spanModifier: ModifierChoice {
@@ -73,7 +90,12 @@ final class SettingsStore: ObservableObject {
     }
 
     /// Whether the app is registered to launch at login. Backed directly by
-    /// `SMAppService`, which is the source of truth.
+    /// `SMAppService`, which is the source of truth — this is a computed
+    /// property, not `@Published`, so SwiftUI only re-reads it when explicitly
+    /// told to. `register()`/`unregister()` can throw (e.g. blocked by policy);
+    /// announcing the change unconditionally after the attempt makes any
+    /// `Toggle` bound to this re-read the *actual* status rather than staying
+    /// stuck showing whatever value was optimistically passed to the setter.
     var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
         set {
@@ -86,6 +108,7 @@ final class SettingsStore: ObservableObject {
             } catch {
                 NSLog("[TilingGlass] launch-at-login toggle failed: \(error)")
             }
+            objectWillChange.send()
         }
     }
 
@@ -118,6 +141,10 @@ final class SettingsStore: ObservableObject {
     private static func readModifier(_ defaults: UserDefaults, _ key: String) -> ModifierChoice? {
         guard let raw = defaults.string(forKey: key) else { return nil }
         return ModifierChoice(rawValue: raw)
+    }
+
+    private static func fallbackSpanModifier(avoiding modifier: ModifierChoice) -> ModifierChoice {
+        ModifierChoice.allCases.first { $0 != modifier } ?? modifier
     }
 
     private enum Keys {

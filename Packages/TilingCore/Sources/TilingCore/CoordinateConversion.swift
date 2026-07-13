@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import CoreGraphics
 
 /// The single place where TilingGlass converts between the two coordinate

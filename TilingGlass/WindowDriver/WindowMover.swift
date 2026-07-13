@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import CoreGraphics
 
 /// Moves and resizes windows via the Accessibility API. Encapsulates the quirks

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 import AppKit
 import TilingCore
 
@@ -61,6 +63,14 @@ final class DragCoordinator {
         session = nil
     }
 
+    /// Seeds the tracked modifier state from the live keyboard state. See the
+    /// call site in `AppDelegate.startMonitoringIfTrusted()` for why this is
+    /// needed — `flagsChanged` only reports transitions, not the state at the
+    /// time monitoring begins.
+    func seedModifierFlags(_ flags: NSEvent.ModifierFlags) {
+        currentFlags = flags.intersection(.deviceIndependentFlagsMask)
+    }
+
     // MARK: - State transitions
 
     private func beginCandidate(at appKitPoint: CGPoint) {
@@ -72,11 +82,16 @@ final class DragCoordinator {
         guard let window = resolveWindow(atAppKitPoint: appKitPoint) else { return }
         // Ignore our own windows (overlay/settings/onboarding).
         if window.pid == ProcessInfo.processInfo.processIdentifier { return }
+        // If the window's position can't be read at all, there's no reliable
+        // baseline to detect a real drag against — skip tracking this gesture
+        // rather than defaulting to a fake `.zero` origin (which could
+        // coincidentally look like a valid small movement later).
+        guard let initialOrigin = window.position else { return }
 
         session = DragSession(
             window: window,
             initialMouse: appKitPoint,
-            initialAXOrigin: window.frame?.origin ?? .zero
+            initialAXOrigin: initialOrigin
         )
     }
 
@@ -88,25 +103,29 @@ final class DragCoordinator {
             guard moved > dragThreshold else { return }
 
             // Confirm the window itself moved — otherwise this is likely a text
-            // selection or resize starting on the same element. Retry across a
-            // few events since an app's AX position can lag the OS drag start.
-            if let origin = current.window.frame?.origin {
-                let windowMoved = hypot(origin.x - current.initialAXOrigin.x, origin.y - current.initialAXOrigin.y)
-                if windowMoved < 1 {
-                    current.confirmAttempts += 1
-                    if current.confirmAttempts >= maxConfirmAttempts { current.ignored = true }
-                    session = current
-                    return
-                }
+            // selection or resize starting on the same element. A nil AX read
+            // counts against the retry budget the same as "hasn't moved yet"
+            // rather than falling through to confirm — a single transient AX
+            // hiccup must not bypass this check entirely. Retrying across a few
+            // events also covers apps whose AX position lags the OS drag start.
+            guard let origin = current.window.position else {
+                current.confirmAttempts += 1
+                if current.confirmAttempts >= maxConfirmAttempts { current.ignored = true }
+                session = current
+                return
+            }
+            let windowMoved = hypot(origin.x - current.initialAXOrigin.x, origin.y - current.initialAXOrigin.y)
+            if windowMoved < 1 {
+                current.confirmAttempts += 1
+                if current.confirmAttempts >= maxConfirmAttempts { current.ignored = true }
+                session = current
+                return
             }
             current.isDragging = true
             session = current
         }
 
         reevaluateOverlay(at: appKitPoint)
-        if session?.overlayShown == true {
-            updateHighlight(at: appKitPoint)
-        }
     }
 
     private func endDrag(at appKitPoint: CGPoint) {
@@ -134,17 +153,24 @@ final class DragCoordinator {
 
         let activationHeld = currentFlags.contains(settings.activationModifier.flag)
 
-        if activationHeld, session?.overlayShown != true {
-            // Snapshot the screen arrangement once for the whole overlay session
-            // so per-mouse-move hit-testing doesn't re-enumerate displays.
-            let screens = screenService.screens
-            overlay.show(screens: screens, gaps: settings.gaps) { [layoutStore] screen in
-                layoutStore.layout(forScreen: screen.uuid)
+        if activationHeld {
+            if session?.overlayShown != true {
+                // Snapshot the screen arrangement once for the whole overlay
+                // session so per-mouse-move hit-testing doesn't re-enumerate
+                // displays.
+                let screens = screenService.screens
+                overlay.show(screens: screens, gaps: settings.gaps) { [layoutStore] screen in
+                    layoutStore.layout(forScreen: screen.uuid)
+                }
+                session?.overlayShown = true
+                session?.screens = screens
             }
-            session?.overlayShown = true
-            session?.screens = screens
+            // Always refresh the highlight while shown — not just on the
+            // shown-transition — so toggling the span modifier while the cursor
+            // is stationary (no new mouseDragged event) still updates the
+            // selection instead of leaving a stale highlight.
             updateHighlight(at: appKitPoint)
-        } else if !activationHeld, session?.overlayShown == true {
+        } else if session?.overlayShown == true {
             overlay.hide()
             session?.overlayShown = false
             session?.currentSelection = []
@@ -155,7 +181,12 @@ final class DragCoordinator {
 
     private func updateHighlight(at appKitPoint: CGPoint) {
         guard session?.overlayShown == true, let screens = session?.screens else { return }
-        guard let screen = screens.first(where: { $0.appKitVisibleFrame.contains(appKitPoint) }),
+        // Inclusive bounds: `CGRect.contains` is half-open on the max edges, so
+        // a cursor sitting exactly on a display's top/right pixel would
+        // otherwise match no screen and clear the highlight at the physical
+        // screen edge — the same class of edge-inclusivity issue ZoneHitTesting
+        // already accounts for at the tile level.
+        guard let screen = screens.first(where: { $0.appKitVisibleFrame.containsInclusive(appKitPoint) }),
               let layout = overlay.shownLayouts[screen.uuid] else {
             overlay.clearHighlights()
             session?.currentSelection = []
@@ -184,7 +215,13 @@ final class DragCoordinator {
             session?.spanAnchor = nil
             return []
         }
-        let spanHeld = currentFlags.contains(settings.spanModifier.flag)
+        // If activation and span are bound to the same key, testing the span
+        // flag would trivially always be true for as long as the overlay is
+        // visible (they're the same bit), making single-tile selection
+        // impossible. Settings prevents picking the same key for both, but
+        // guard here too in case that invariant is ever violated.
+        let spanHeld = settings.spanModifier != settings.activationModifier
+            && currentFlags.contains(settings.spanModifier.flag)
         guard spanHeld else {
             session?.spanAnchor = nil
             return [hovered]

@@ -1,0 +1,27 @@
+name: TilingCore tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Packages/TilingCore/**"
+      - ".github/workflows/tilingcore-tests.yml"
+  pull_request:
+    paths:
+      - "Packages/TilingCore/**"
+      - ".github/workflows/tilingcore-tests.yml"
+
+jobs:
+  test:
+    # TilingCore is pure Swift (Foundation/CoreGraphics only) and runs on any
+    # macOS runner with a recent toolchain — it doesn't need the macOS 26 SDK
+    # the full app target requires, so this stays cheap and fast on a stock
+    # GitHub-hosted runner.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift --version
+        run: swift --version
+      - name: swift test
+        working-directory: Packages/TilingCore
+        run: swift test
