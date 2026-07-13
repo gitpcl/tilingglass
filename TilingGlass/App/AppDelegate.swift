@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
+import TilingCore
 
 /// Composition root. Constructs the object graph and wires the menu bar to the
-/// rest of the app. Components are added phase by phase; Phase 1 wires the menu.
+/// rest of the app. Components are added phase by phase.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let settings = SettingsStore()
@@ -10,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let screenService = ScreenService()
 
     private var statusMenu: StatusMenuController?
+    private let onboarding = OnboardingWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement already hides the Dock icon; ensure accessory policy.
@@ -19,6 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.onOpenSettings = { Self.openSettingsWindow() }
         menu.onDebugAction = { [weak self] action in self?.handleDebugAction(action) }
         statusMenu = menu
+
+        onboarding.onGranted = { NSLog("[TilingGlass] Accessibility access granted") }
+        onboarding.showIfNeeded()
     }
 
     // MARK: - Debug actions (temporary, replaced as phases land)
@@ -26,10 +31,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleDebugAction(_ action: StatusMenuController.DebugAction) {
         switch action {
         case .moveFocusedLeftHalf:
-            NSLog("[TilingGlass] moveFocusedLeftHalf not yet wired")
+            moveFocusedToLeftHalf()
         case .toggleOverlayPreview:
             NSLog("[TilingGlass] toggleOverlayPreview not yet wired")
         }
+    }
+
+    /// Phase 2 validation: exercises the full pipeline — focused window lookup,
+    /// screen resolution, zone geometry, coordinate flip, and the AX move.
+    private func moveFocusedToLeftHalf() {
+        guard AccessibilityElement.isTrusted else {
+            onboarding.present()
+            return
+        }
+        guard let window = AccessibilityElement.focusedWindow(), let frame = window.frame else {
+            NSLog("[TilingGlass] no focused window")
+            return
+        }
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        let screens = screenService.screens
+        guard let screen = screens.first(where: { $0.axVisibleFrame.contains(center) }) ?? screens.first else {
+            return
+        }
+        let leftHalf = BuiltinLayouts.equalSplit.tiles[0]
+        let target = ZoneGeometry.resolve(leftHalf, in: screen.axVisibleFrame, gaps: settings.gaps)
+        let result = WindowMover.move(window, to: target)
+        NSLog("[TilingGlass] moveFocusedToLeftHalf on \(screen.localizedName) → \(String(describing: result))")
     }
 
     // MARK: - Settings window
