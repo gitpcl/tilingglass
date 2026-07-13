@@ -1,0 +1,18 @@
+# Xcode / build
+*.xcodeproj
+build/
+DerivedData/
+.build/
+*.xcworkspace
+!default.xcworkspace
+
+# macOS
+.DS_Store
+
+# SPM
+Packages/*/.build/
+.swiftpm/
+
+# User settings
+xcuserdata/
+*.xcuserstate

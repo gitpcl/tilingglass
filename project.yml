@@ -1,0 +1,55 @@
+name: TilingGlass
+
+options:
+  bundleIdPrefix: com.pedrolopes
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+packages:
+  TilingCore:
+    path: Packages/TilingCore
+
+targets:
+  TilingGlass:
+    type: application
+    platform: macOS
+    sources:
+      - path: TilingGlass
+    dependencies:
+      - package: TilingCore
+    info:
+      path: TilingGlass/Resources/Info.plist
+      properties:
+        # Menu-bar-only agent app: no Dock icon, no main window.
+        LSUIElement: true
+        CFBundleName: TilingGlass
+        CFBundleDisplayName: TilingGlass
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        NSHumanReadableCopyright: "GPL-3.0. Copyright © 2026 Pedro Lopes."
+        # Cosmetic under the current AX permission model, but good form.
+        NSAccessibilityUsageDescription: "TilingGlass needs Accessibility access to move and resize windows into layout zones."
+        LSMinimumSystemVersion: "26.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pedrolopes.tilingglass
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        DEVELOPMENT_TEAM: YOUR_TEAM_ID
+        # Manual signing with the stable "Apple Development" identity keeps the
+        # Accessibility grant sticky across rebuilds (ad-hoc would reset it),
+        # and avoids automatic signing's demand for a "Mac Development" cert.
+        CODE_SIGN_STYLE: Manual
+        # Local dev signing. The generic "Apple Development" name is ambiguous
+        # on this machine (two matching certs) and Xcode falls back to a
+        # non-existent "Mac Development" cert, so we pin the exact identity by
+        # SHA-1. This is machine-specific — replace with your own via
+        # `security find-identity -v -p codesigning`. Keeping a stable identity
+        # makes the Accessibility grant survive rebuilds. Distribution builds
+        # will use a Developer ID identity instead.
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": "SHA1_OF_YOUR_CERTIFICATE"
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        SWIFT_VERSION: "6.0"
+        ENABLE_HARDENED_RUNTIME: true
+        SWIFT_STRICT_CONCURRENCY: complete
