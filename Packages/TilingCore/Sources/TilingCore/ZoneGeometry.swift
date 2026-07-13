@@ -19,9 +19,11 @@ public struct Gaps: Equatable, Sendable {
 /// Converts normalized tiles (0...1 space, top-left origin) into concrete pixel
 /// rects within a screen's usable area, applying gap rules.
 ///
-/// Pure and space-agnostic: `screenRect` may be given in any coordinate space
-/// (AppKit or AX); the result is returned in that same space. Callers flip
-/// separately via ``CoordinateConversion``.
+/// **Coordinate space:** a tile's `y` is measured from the *top*, so
+/// `screenRect` must be a top-left/y-down rect (i.e. AX/CG space). Passing an
+/// AppKit (bottom-left/y-up) rect mirrors the result vertically. `x`/width are
+/// unaffected by orientation. The result is returned in the same space as
+/// `screenRect`.
 public enum ZoneGeometry {
     private static let edgeTolerance = 1e-6
 

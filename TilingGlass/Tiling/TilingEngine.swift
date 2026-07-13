@@ -32,11 +32,11 @@ final class TilingEngine {
         guard let normalized = ZoneHitTesting.targetNormalizedRect(for: selection, layout: layout) else {
             return .failed
         }
-        let appKitRect = ZoneGeometry.resolve(
-            normalizedRect: normalized, in: screen.appKitVisibleFrame, gaps: settings.gaps
-        )
-        let axRect = CoordinateConversion.axRect(
-            fromAppKit: appKitRect, primaryScreenHeight: screenService.primaryHeight
+        // Resolve directly in the screen's AX (top-left) frame: ZoneGeometry and
+        // AX window positions share that origin, so no flip is needed. Resolving
+        // in AppKit space would mirror vertical layouts.
+        let axRect = ZoneGeometry.resolve(
+            normalizedRect: normalized, in: screen.axVisibleFrame, gaps: settings.gaps
         )
         return WindowMover.move(window, to: axRect)
     }

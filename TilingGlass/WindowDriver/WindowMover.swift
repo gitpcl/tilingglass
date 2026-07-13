@@ -42,9 +42,12 @@ enum WindowMover {
             return .full
         }
 
-        let widthOff = abs(resulting.width - targetFrame.width)
-        let heightOff = abs(resulting.height - targetFrame.height)
-        if widthOff <= sizeTolerance && heightOff <= sizeTolerance {
+        // Report `.full` only if both size and position landed. Some apps clamp
+        // a minimum size or refuse to move outside the visible area; those are
+        // `.partial` so callers/logging don't over-report success.
+        let sizeOff = max(abs(resulting.width - targetFrame.width), abs(resulting.height - targetFrame.height))
+        let positionOff = max(abs(resulting.minX - targetFrame.minX), abs(resulting.minY - targetFrame.minY))
+        if sizeOff <= sizeTolerance && positionOff <= sizeTolerance {
             return .full
         }
         return .partial(actual: resulting)

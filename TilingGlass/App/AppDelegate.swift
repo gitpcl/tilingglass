@@ -47,7 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.overlay.hide() }
+            MainActor.assumeIsolated { self?.dragCoordinator.handleDisplaysChanged() }
         }
 
         // Smoke-test hook: TILINGGLASS_DEBUG_OVERLAY=1 shows the glass overlay on

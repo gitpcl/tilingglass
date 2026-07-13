@@ -79,4 +79,40 @@ final class ZoneHitTestingTests: XCTestCase {
     func testTargetRectEmptySelection() {
         XCTAssertNil(ZoneHitTesting.targetNormalizedRect(for: [], layout: BuiltinLayouts.grid2x2))
     }
+
+    /// Locks the top-left/y-down contract shared by resolve and hit-test: the
+    /// center of every resolved tile must hit-test back to that same tile. A
+    /// regression here would mean geometry and hit-testing disagree on
+    /// orientation (the Y-inversion class of bug).
+    func testResolveAndHitTestRoundTripForVerticalLayout() {
+        // A vertical split with an asymmetric top/bottom so a y-flip would be
+        // detectable (not masked by symmetry).
+        let vertical = Layout(id: "V", tiles: [
+            Tile(x: 0, y: 0, width: 1, height: 0.3),   // top band
+            Tile(x: 0, y: 0.3, width: 1, height: 0.7),  // bottom band
+        ])
+        for layout in [BuiltinLayouts.grid2x2, BuiltinLayouts.thirds, vertical] {
+            for index in layout.tiles.indices {
+                let rect = ZoneGeometry.resolve(layout.tiles[index], in: screen, gaps: .zero)
+                let center = CGPoint(x: rect.midX, y: rect.midY)
+                XCTAssertEqual(
+                    ZoneHitTesting.tileIndex(at: center, layout: layout, screenRect: screen), index,
+                    "\(layout.id) tile \(index) center should hit-test back to itself"
+                )
+            }
+        }
+    }
+
+    /// The top tile must resolve to the top (smaller y) of the screen rect — pins
+    /// the y-down orientation explicitly.
+    func testTopTileResolvesToTop() {
+        let vertical = Layout(id: "V", tiles: [
+            Tile(x: 0, y: 0, width: 1, height: 0.5),
+            Tile(x: 0, y: 0.5, width: 1, height: 0.5),
+        ])
+        let top = ZoneGeometry.resolve(vertical.tiles[0], in: screen, gaps: .zero)
+        let bottom = ZoneGeometry.resolve(vertical.tiles[1], in: screen, gaps: .zero)
+        XCTAssertLessThan(top.minY, bottom.minY)
+        XCTAssertEqual(top.minY, screen.minY, accuracy: 0.001)
+    }
 }

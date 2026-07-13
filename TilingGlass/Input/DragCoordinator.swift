@@ -9,7 +9,9 @@ import TilingCore
 ///
 /// The overlay is shown only while the activation modifier is held during a real
 /// window drag. Highlight state is updated only when the hovered zone changes,
-/// keeping per-event work minimal.
+/// keeping per-event work minimal. Cursor hit-testing is done in AX (top-left)
+/// coordinates so it matches how the overlay draws zones and how windows are
+/// positioned.
 @MainActor
 final class DragCoordinator {
     private let settings: SettingsStore
@@ -22,6 +24,10 @@ final class DragCoordinator {
     private var currentFlags: NSEvent.ModifierFlags = []
 
     private let dragThreshold: CGFloat = 5
+    /// How many drag events to keep checking for an actual window move before
+    /// giving up and treating the gesture as non-tiling (text selection/resize).
+    /// Bounded so a lagging AX response doesn't permanently suppress a real drag.
+    private let maxConfirmAttempts = 20
 
     init(
         settings: SettingsStore, screenService: ScreenService,
@@ -48,10 +54,21 @@ final class DragCoordinator {
         }
     }
 
+    /// Called when the display configuration changes. Tears down any overlay and
+    /// abandons the in-progress session so stale screen frames aren't reused.
+    func handleDisplaysChanged() {
+        overlay.hide()
+        session = nil
+    }
+
     // MARK: - State transitions
 
     private func beginCandidate(at appKitPoint: CGPoint) {
+        // Defensively clear any overlay left over from a session whose mouse-up
+        // was missed, so panels can't get stuck on screen.
+        if overlay.isShown { overlay.hide() }
         session = nil
+
         guard let window = resolveWindow(atAppKitPoint: appKitPoint) else { return }
         // Ignore our own windows (overlay/settings/onboarding).
         if window.pid == ProcessInfo.processInfo.processIdentifier { return }
@@ -70,12 +87,14 @@ final class DragCoordinator {
             let moved = hypot(appKitPoint.x - current.initialMouse.x, appKitPoint.y - current.initialMouse.y)
             guard moved > dragThreshold else { return }
 
-            // Confirm the window itself moved — otherwise this is likely a
-            // text selection or resize starting on the same element.
+            // Confirm the window itself moved — otherwise this is likely a text
+            // selection or resize starting on the same element. Retry across a
+            // few events since an app's AX position can lag the OS drag start.
             if let origin = current.window.frame?.origin {
                 let windowMoved = hypot(origin.x - current.initialAXOrigin.x, origin.y - current.initialAXOrigin.y)
                 if windowMoved < 1 {
-                    current.ignored = true
+                    current.confirmAttempts += 1
+                    if current.confirmAttempts >= maxConfirmAttempts { current.ignored = true }
                     session = current
                     return
                 }
@@ -98,7 +117,7 @@ final class DragCoordinator {
         guard let current = session, current.isDragging, current.overlayShown,
               !current.currentSelection.isEmpty,
               let uuid = current.currentScreenUUID,
-              let screen = screenService.screens.first(where: { $0.uuid == uuid }),
+              let screen = current.screens.first(where: { $0.uuid == uuid }),
               let layout = overlay.shownLayouts[uuid] else {
             return
         }
@@ -116,10 +135,14 @@ final class DragCoordinator {
         let activationHeld = currentFlags.contains(settings.activationModifier.flag)
 
         if activationHeld, session?.overlayShown != true {
-            overlay.show(screens: screenService.screens, gaps: settings.gaps) { [layoutStore] screen in
+            // Snapshot the screen arrangement once for the whole overlay session
+            // so per-mouse-move hit-testing doesn't re-enumerate displays.
+            let screens = screenService.screens
+            overlay.show(screens: screens, gaps: settings.gaps) { [layoutStore] screen in
                 layoutStore.layout(forScreen: screen.uuid)
             }
             session?.overlayShown = true
+            session?.screens = screens
             updateHighlight(at: appKitPoint)
         } else if !activationHeld, session?.overlayShown == true {
             overlay.hide()
@@ -131,8 +154,8 @@ final class DragCoordinator {
     }
 
     private func updateHighlight(at appKitPoint: CGPoint) {
-        guard session?.overlayShown == true else { return }
-        guard let screen = screenService.screen(atAppKitPoint: appKitPoint),
+        guard session?.overlayShown == true, let screens = session?.screens else { return }
+        guard let screen = screens.first(where: { $0.appKitVisibleFrame.contains(appKitPoint) }),
               let layout = overlay.shownLayouts[screen.uuid] else {
             overlay.clearHighlights()
             session?.currentSelection = []
@@ -144,7 +167,11 @@ final class DragCoordinator {
             session?.spanAnchor = nil
         }
 
-        let hovered = ZoneHitTesting.tileIndex(at: appKitPoint, layout: layout, screenRect: screen.appKitVisibleFrame)
+        // Hit-test in AX space: flip the AppKit cursor and use the screen's AX
+        // frame so the highlighted zone matches both the drawn overlay and the
+        // eventual drop position.
+        let axPoint = CoordinateConversion.flipY(appKitPoint, primaryScreenHeight: screenService.primaryHeight)
+        let hovered = ZoneHitTesting.tileIndex(at: axPoint, layout: layout, screenRect: screen.axVisibleFrame)
         let selection = computeSelection(hovered: hovered, layout: layout)
 
         session?.currentSelection = selection
@@ -169,15 +196,11 @@ final class DragCoordinator {
 
     // MARK: - Helpers
 
-    /// Resolves the window under a cursor point, retrying a few times because AX
-    /// hit-testing is occasionally momentarily unavailable.
+    /// Resolves the window under a cursor point. AX hit-testing expects a point
+    /// in AX (top-left) coordinates, so the AppKit cursor is flipped first.
     private func resolveWindow(atAppKitPoint appKitPoint: CGPoint) -> AccessibilityElement? {
         let axPoint = CoordinateConversion.flipY(appKitPoint, primaryScreenHeight: screenService.primaryHeight)
-        let systemWide = AccessibilityElement.systemWide
-        for _ in 0..<3 {
-            if let window = systemWide.windowElement(at: axPoint) { return window }
-        }
-        return nil
+        return AccessibilityElement.systemWide.windowElement(at: axPoint)
     }
 }
 
@@ -188,8 +211,11 @@ private struct DragSession {
     let initialAXOrigin: CGPoint
     var isDragging = false
     var ignored = false
+    var confirmAttempts = 0
     var overlayShown = false
     var spanAnchor: Int?
     var currentScreenUUID: String?
     var currentSelection: Set<Int> = []
+    /// Screen arrangement snapshot captured when the overlay is shown.
+    var screens: [ScreenInfo] = []
 }
