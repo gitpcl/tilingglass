@@ -1,5 +1,6 @@
 import AppKit
 import TilingCore
+import UniformTypeIdentifiers
 
 /// Owns the menu-bar status item and its menu. The menu is rebuilt on demand so
 /// it always reflects the current screens and layout selection.
@@ -51,6 +52,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        addLayoutFileItems(to: menu)
+
+        menu.addItem(.separator())
         addDebugItems(to: menu)
 
         menu.addItem(.separator())
@@ -82,6 +86,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
     }
 
+    private func addLayoutFileItems(to menu: NSMenu) {
+        let importItem = NSMenuItem(title: "Import Layouts…", action: #selector(importLayouts), keyEquivalent: "")
+        importItem.target = self
+        menu.addItem(importItem)
+
+        let exportItem = NSMenuItem(title: "Export Layouts…", action: #selector(exportLayouts), keyEquivalent: "")
+        exportItem.target = self
+        menu.addItem(exportItem)
+    }
+
     private func addDebugItems(to menu: NSMenu) {
         let debugHeader = NSMenuItem(title: "Debug", action: nil, keyEquivalent: "")
         debugHeader.isEnabled = false
@@ -105,6 +119,45 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc private func openSettings() {
         onOpenSettings?()
+    }
+
+    @objc private func importLayouts() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Layouts"
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            try layoutStore.importLayouts(from: data)
+        } catch {
+            presentError("Could not import layouts", error)
+        }
+    }
+
+    @objc private func exportLayouts() {
+        let panel = NSSavePanel()
+        panel.title = "Export Layouts"
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "TilingGlass Layouts.json"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try layoutStore.exportAllLayouts()
+            try data.write(to: url)
+        } catch {
+            presentError("Could not export layouts", error)
+        }
+    }
+
+    private func presentError(_ message: String, _ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = String(describing: error)
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 
     @objc private func debugMoveLeft() {

@@ -35,6 +35,27 @@ final class LayoutCodecTests: XCTestCase {
         XCTAssertEqual(layout.tiles[1], Tile(x: 0.5, y: 0, width: 0.5, height: 1, groups: [1]))
     }
 
+    func testDecodesRealisticMultiLayoutExport() throws {
+        // Mirrors Examples/tilingshell-layouts.json — a Tiling Shell export array.
+        let export = """
+        [
+          { "id": "Equal split", "tiles": [
+            { "x": 0, "y": 0, "width": 0.5, "height": 1, "groups": [1] },
+            { "x": 0.5, "y": 0, "width": 0.5, "height": 1, "groups": [1] } ] },
+          { "id": "Main and stack", "tiles": [
+            { "x": 0, "y": 0, "width": 0.6, "height": 1, "groups": [1] },
+            { "x": 0.6, "y": 0, "width": 0.4, "height": 0.5, "groups": [1, 2] },
+            { "x": 0.6, "y": 0.5, "width": 0.4, "height": 0.5, "groups": [2] } ] }
+        ]
+        """
+        let layouts = try LayoutCodec.decode(Data(export.utf8))
+        XCTAssertEqual(layouts.map(\.id), ["Equal split", "Main and stack"])
+        XCTAssertEqual(layouts[1].tiles.count, 3)
+        // Re-encoding and decoding is lossless.
+        let reDecoded = try LayoutCodec.decode(try LayoutCodec.encode(layouts))
+        XCTAssertEqual(reDecoded, layouts)
+    }
+
     func testDecodesArrayOfLayouts() throws {
         let data = try LayoutCodec.encode(BuiltinLayouts.all)
         let decoded = try LayoutCodec.decode(data)
