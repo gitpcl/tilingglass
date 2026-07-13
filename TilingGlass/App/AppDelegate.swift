@@ -13,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusMenu: StatusMenuController?
     private let onboarding = OnboardingWindowController()
     private let overlay = OverlayController()
+    private lazy var engine = TilingEngine(screenService: screenService, settings: settings, layoutStore: layoutStore)
+    private lazy var dragCoordinator = DragCoordinator(
+        settings: settings, screenService: screenService,
+        overlay: overlay, engine: engine, layoutStore: layoutStore
+    )
+    private let dragMonitor = DragMonitor()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement already hides the Dock icon; ensure accessory policy.
@@ -23,7 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.onDebugAction = { [weak self] action in self?.handleDebugAction(action) }
         statusMenu = menu
 
-        onboarding.onGranted = { NSLog("[TilingGlass] Accessibility access granted") }
+        dragMonitor.onEvent = { [weak self] event in self?.dragCoordinator.handle(event) }
+        startMonitoringIfTrusted()
+
+        onboarding.onGranted = { [weak self] in
+            NSLog("[TilingGlass] Accessibility access granted")
+            self?.startMonitoringIfTrusted()
+        }
         onboarding.showIfNeeded()
 
         // Smoke-test hook: TILINGGLASS_DEBUG_OVERLAY=1 shows the glass overlay on
@@ -32,6 +44,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             toggleOverlayPreview()
             NSLog("[TilingGlass] debug overlay shown: \(overlay.isShown)")
         }
+    }
+
+    /// Starts observing drags once Accessibility access is available. Global
+    /// event monitors require that access, so this is gated and re-invoked after
+    /// the user grants it.
+    private func startMonitoringIfTrusted() {
+        guard AccessibilityElement.isTrusted, !dragMonitor.isRunning else { return }
+        dragMonitor.start()
+        NSLog("[TilingGlass] drag monitoring started")
     }
 
     // MARK: - Debug actions (temporary, replaced as phases land)
