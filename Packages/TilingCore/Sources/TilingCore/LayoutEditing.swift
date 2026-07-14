@@ -152,30 +152,68 @@ public enum LayoutEditing {
         return best?.boundary
     }
 
-    /// Builds the boundary at (`orientation`, `position`) local to the cross-
-    /// axis coordinate `along`: only tiles whose extent contains `along` are
-    /// affected, so in a 2x2 grid, grabbing the mid-line in the top half drags
-    /// just the top pair — per-segment, matching Tiling Shell's groups model.
+    /// Builds the boundary at (`orientation`, `position`) grabbed at the
+    /// cross-axis coordinate `along`.
+    ///
+    /// Starts from the tiles directly under the grab point (one pair required),
+    /// then expands by transitive closure: a tile is a single rectangle with a
+    /// single edge, so when it moves, every tile bordering the line whose
+    /// extent overlaps an already-affected tile's extent must move with it —
+    /// otherwise the layout tears into gaps or overlaps. Segments that aren't
+    /// chained stay independent: in a 2x2 grid, grabbing the mid-line in the
+    /// top half still drags just the top pair (the bottom pair only *touches*
+    /// the top tiles at a point, which doesn't chain). But a full-height tile
+    /// bordering two stacked tiles chains all three, so the whole line moves.
     private static func makeBoundary(
         orientation: LayoutBoundary.Orientation, position: Double, at along: Double, in layout: Layout
     ) -> LayoutBoundary? {
-        var leading: [Int] = []
-        var trailing: [Int] = []
-
-        for (index, tile) in layout.tiles.enumerated() {
-            let (start, end, tileRange): (Double, Double, ClosedRange<Double>)
-            switch orientation {
-            case .vertical:
-                (start, end, tileRange) = (tile.x, tile.maxX, tile.y...tile.maxY)
-            case .horizontal:
-                (start, end, tileRange) = (tile.y, tile.maxY, tile.x...tile.maxX)
-            }
-            guard tileRange.lowerBound - epsilon <= along, along <= tileRange.upperBound + epsilon else { continue }
-            if nearly(end, position) { leading.append(index) }
-            if nearly(start, position) { trailing.append(index) }
+        struct Borderer {
+            let tileIndex: Int
+            let isLeading: Bool
+            let range: ClosedRange<Double>
         }
 
-        guard !leading.isEmpty, !trailing.isEmpty else { return nil }
+        var borderers: [Borderer] = []
+        for (index, tile) in layout.tiles.enumerated() {
+            let (start, end, range): (Double, Double, ClosedRange<Double>)
+            switch orientation {
+            case .vertical:
+                (start, end, range) = (tile.x, tile.maxX, tile.y...tile.maxY)
+            case .horizontal:
+                (start, end, range) = (tile.y, tile.maxY, tile.x...tile.maxX)
+            }
+            if nearly(end, position) {
+                borderers.append(Borderer(tileIndex: index, isLeading: true, range: range))
+            } else if nearly(start, position) {
+                borderers.append(Borderer(tileIndex: index, isLeading: false, range: range))
+            }
+        }
+
+        // Seed with the tiles under the grab point; a draggable boundary needs
+        // a tile ending *and* a tile starting at the line right there.
+        func containsAlong(_ range: ClosedRange<Double>) -> Bool {
+            range.lowerBound - epsilon <= along && along <= range.upperBound + epsilon
+        }
+        var affected = Set(borderers.indices.filter { containsAlong(borderers[$0].range) })
+        guard affected.contains(where: { borderers[$0].isLeading }),
+              affected.contains(where: { !borderers[$0].isLeading }) else {
+            return nil
+        }
+
+        // Closure over extent overlap (touching at a point doesn't chain).
+        var changed = true
+        while changed {
+            changed = false
+            for candidate in borderers.indices where !affected.contains(candidate) {
+                if affected.contains(where: { overlaps(borderers[$0].range, borderers[candidate].range) }) {
+                    affected.insert(candidate)
+                    changed = true
+                }
+            }
+        }
+
+        let leading = affected.filter { borderers[$0].isLeading }.map { borderers[$0].tileIndex }.sorted()
+        let trailing = affected.filter { !borderers[$0].isLeading }.map { borderers[$0].tileIndex }.sorted()
         return LayoutBoundary(orientation: orientation, position: position, leadingTiles: leading, trailingTiles: trailing)
     }
 

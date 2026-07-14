@@ -252,8 +252,11 @@ Menu bar → **New Layout…** opens the editor with a single full-screen zone;
   the space merges back into a clean rectangle); the editor tells you when it
   can't.
 - **Drag a shared edge** between zones to resize them against each other.
-  Segments are independent — in a 2x2 grid, dragging the vertical mid-line in
-  the top half moves only the top pair, so rows can split at different points.
+  Everything chained across the dragged line moves together — a full-height
+  zone bordering two stacked zones drags all three edges at once, since a
+  rectangle has only one edge to move. Unchained segments stay independent:
+  in a 2x2 grid, dragging the vertical mid-line in the top half moves only
+  the top pair, so rows can split at different points.
 - Name the layout and **Save**. Saving with a built-in layout's name overrides
   that built-in (a **Restore Built-in** button brings the original back);
   custom layouts get a **Delete Layout** button instead.

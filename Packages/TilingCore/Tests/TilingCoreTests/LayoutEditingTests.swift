@@ -136,6 +136,24 @@ final class LayoutEditingTests: XCTestCase {
         XCTAssertEqual(boundary?.trailingTiles, [1])
     }
 
+    func testBoundaryIncludesAllTilesChainedAcrossTheLine() {
+        // Regression (user-reported): a wide zone bordering two stacked zones
+        // on one line. Grabbing the line at the height of only one stacked
+        // zone must still drag *both* — the wide zone is a single rectangle,
+        // so its whole edge moves, and anything bordering that edge must
+        // follow or the layout tears into gaps/overlaps.
+        let layout = Layout(id: "Cols", tiles: [
+            Tile(x: 0, y: 0, width: 0.3, height: 1),      // 0: left column
+            Tile(x: 0.3, y: 0, width: 0.45, height: 1),   // 1: wide middle
+            Tile(x: 0.75, y: 0, width: 0.25, height: 0.5),  // 2: top right
+            Tile(x: 0.75, y: 0.5, width: 0.25, height: 0.5), // 3: bottom right
+        ])
+        // Grab at the height of the top-right zone only (y = 0.25).
+        let boundary = LayoutEditing.boundary(near: CGPoint(x: 0.75, y: 0.25), in: layout, tolerance: 0.02)
+        XCTAssertEqual(boundary?.leadingTiles, [1])
+        XCTAssertEqual(boundary?.trailingTiles, [2, 3])
+    }
+
     // MARK: - Boundary dragging
 
     func testMoveVerticalBoundaryResizesBothSides() {
@@ -158,6 +176,29 @@ final class LayoutEditingTests: XCTestCase {
         // Try to crush the left tile to nothing; it must clamp at minTileSize.
         let moved = LayoutEditing.movingBoundary(layout, boundary: boundary, to: 0.0, minTileSize: 0.05)
         XCTAssertEqual(moved.tiles[0].width, 0.05, accuracy: 1e-9)
+        XCTAssertNoThrow(try moved.validate())
+    }
+
+    func testDraggingSharedLineMovesAllChainedTilesTogether() {
+        // The full user-reported scenario: dragging the line between the wide
+        // middle zone and the stacked right zones must move all three edges in
+        // lockstep — no gaps, no overlaps, whichever segment was grabbed.
+        let layout = Layout(id: "Cols", tiles: [
+            Tile(x: 0, y: 0, width: 0.3, height: 1),
+            Tile(x: 0.3, y: 0, width: 0.45, height: 1),
+            Tile(x: 0.75, y: 0, width: 0.25, height: 0.5),
+            Tile(x: 0.75, y: 0.5, width: 0.25, height: 0.5),
+        ])
+        guard let boundary = LayoutEditing.boundary(near: CGPoint(x: 0.75, y: 0.75), in: layout, tolerance: 0.02) else {
+            return XCTFail("boundary not found")
+        }
+        let moved = LayoutEditing.movingBoundary(layout, boundary: boundary, to: 0.6, minTileSize: 0.05)
+        XCTAssertEqual(moved.tiles[1].maxX, 0.6, accuracy: 1e-9)
+        XCTAssertEqual(moved.tiles[2].x, 0.6, accuracy: 1e-9)
+        XCTAssertEqual(moved.tiles[3].x, 0.6, accuracy: 1e-9)
+        // Widths grew to keep the right edge at the screen boundary.
+        XCTAssertEqual(moved.tiles[2].maxX, 1.0, accuracy: 1e-9)
+        XCTAssertEqual(moved.tiles[3].maxX, 1.0, accuracy: 1e-9)
         XCTAssertNoThrow(try moved.validate())
     }
 
