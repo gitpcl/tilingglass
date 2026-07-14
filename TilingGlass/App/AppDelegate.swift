@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private let dragMonitor = DragMonitor()
     private lazy var hotkeys = HotkeyManager(engine: engine)
+    private lazy var layoutEditor = LayoutEditorWindowController(layoutStore: layoutStore)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement already hides the Dock icon; ensure accessory policy.
@@ -29,6 +30,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = StatusMenuController(layoutStore: layoutStore, screenService: screenService)
         menu.onDebugAction = { [weak self] action in self?.handleDebugAction(action) }
+        menu.onNewLayout = { [weak self] in
+            // A new layout starts from a single full-screen zone with no name.
+            // (TilingCore.Layout spelled out: SwiftUI also exports `Layout`.)
+            self?.layoutEditor.present(editing: TilingCore.Layout(id: "", tiles: [
+                Tile(x: 0, y: 0, width: 1, height: 1),
+            ]))
+        }
+        menu.onEditLayout = { [weak self] id in
+            guard let self, let layout = self.layoutStore.layout(withID: id) else { return }
+            self.layoutEditor.present(editing: layout)
+        }
         statusMenu = menu
 
         dragMonitor.onEvent = { [weak self] event in self?.dragCoordinator.handle(event) }
@@ -56,6 +68,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["TILINGGLASS_DEBUG_OVERLAY"] == "1" {
             toggleOverlayPreview()
             NSLog("[TilingGlass] debug overlay shown: \(overlay.isShown)")
+        }
+
+        // Smoke-test hook: TILINGGLASS_DEBUG_EDITOR=1 opens the layout editor on
+        // launch, proving the window and canvas construct without a menu click.
+        if ProcessInfo.processInfo.environment["TILINGGLASS_DEBUG_EDITOR"] == "1" {
+            layoutEditor.present(editing: BuiltinLayouts.grid2x2)
+            NSLog("[TilingGlass] debug editor opened")
         }
     }
 

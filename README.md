@@ -25,6 +25,7 @@ Layouts are stored in, and interchangeable with, Tiling Shell's own JSON format.
   - [Spanning multiple zones](#spanning-multiple-zones)
   - [Keyboard tiling](#keyboard-tiling)
   - [Layouts](#layouts)
+  - [Creating and editing layouts](#creating-and-editing-layouts)
   - [Importing and exporting layouts](#importing-and-exporting-layouts)
 - [Settings](#settings)
 - [Architecture](#architecture)
@@ -71,12 +72,15 @@ Implemented in v0.1:
   including mixed-DPI setups.
 - **Configurable gaps** — independent inner (between zones) and outer (zone to
   screen edge) spacing.
+- **Visual layout editor** — create and edit layouts by clicking zones to
+  split them, right-clicking to delete, and dragging shared edges to resize
+  (see [Creating and editing layouts](#creating-and-editing-layouts)).
 - **Import / export** — round-trip layouts as Tiling Shell-format JSON files.
 
 Not yet implemented (see [Roadmap](#roadmap)):
-Windows 11-style snap assistant, a visual layout editor, screen-edge tiling,
-post-snap window suggestions to fill empty zones, smart resize of adjacent
-tiles, auto-tiling of new windows, and per-workspace layouts.
+Windows 11-style snap assistant, screen-edge tiling, post-snap window
+suggestions to fill empty zones, smart resize of adjacent tiles, auto-tiling
+of new windows, and per-workspace layouts.
 
 ## Requirements
 
@@ -236,6 +240,29 @@ Four layouts ship built in:
 
 Each screen has its own independent layout selection, picked from the menu bar.
 
+### Creating and editing layouts
+
+Menu bar → **New Layout…** opens the editor with a single full-screen zone;
+**Edit Layout** → *(layout name)* opens an existing one. In the editor canvas:
+
+- **Click** a zone to split it into left/right halves.
+- **Option-click** to split it into top/bottom halves.
+- **Right-click** for a context menu: split either way, or **Delete Zone**.
+  A zone can only be deleted when a neighbor spans its entire shared edge (so
+  the space merges back into a clean rectangle); the editor tells you when it
+  can't.
+- **Drag a shared edge** between zones to resize them against each other.
+  Segments are independent — in a 2x2 grid, dragging the vertical mid-line in
+  the top half moves only the top pair, so rows can split at different points.
+- Name the layout and **Save**. Saving with a built-in layout's name overrides
+  that built-in (a **Restore Built-in** button brings the original back);
+  custom layouts get a **Delete Layout** button instead.
+
+Zones can't shrink below 5% of the screen while dragging, and every save is
+validated before it's persisted. Saved layouts get Tiling Shell-compatible
+`groups` metadata recomputed from their geometry, so layouts built here have
+working shared-edge resize when imported into Tiling Shell on Linux.
+
 ### Importing and exporting layouts
 
 Layouts are stored as JSON, structurally identical to Tiling Shell's own export
@@ -255,9 +282,10 @@ format, so files move freely between the two apps:
 
 - `x`, `y`, `width`, `height` are fractions of the screen (`0…1`), with the
   origin at the top-left.
-- `groups` links tiles that share a resize edge in Tiling Shell's editor; it's
-  round-tripped by TilingGlass but not yet interpreted (TilingGlass has no
-  layout editor of its own yet — see [Roadmap](#roadmap)).
+- `groups` links tiles that share a resize edge (each shared edge segment gets
+  an id; tiles list the segments they border). Imported values are round-
+  tripped verbatim; the TilingGlass editor recomputes them from geometry on
+  every save.
 - **Import Layouts…** accepts either a JSON array of layouts (Tiling Shell's
   export shape) or a single bare layout object, so hand-written layouts work
   too.
@@ -290,7 +318,7 @@ windows.
 
 | Layer | Location | Responsibility |
 |---|---|---|
-| `TilingCore` | `Packages/TilingCore` | Pure Swift, no AppKit: the layout model and Tiling Shell-compatible JSON codec, zone geometry (gap math), hit-testing (including multi-zone span selection), directional navigation for keyboard tiling, and the one place that converts between AppKit and Accessibility coordinate spaces. Fully covered by unit tests. |
+| `TilingCore` | `Packages/TilingCore` | Pure Swift, no AppKit: the layout model and Tiling Shell-compatible JSON codec, zone geometry (gap math), hit-testing (including multi-zone span selection), directional navigation for keyboard tiling, the layout-editing operations (split, merge, boundary dragging, `groups` recomputation), and the one place that converts between AppKit and Accessibility coordinate spaces. Fully covered by unit tests. |
 | App shell | `TilingGlass/` | Menu bar, onboarding, the Accessibility window driver, drag input handling, the Liquid Glass overlay, the tiling engine that ties selection to window moves, hotkeys, and settings. |
 
 Inside `TilingGlass/`:
@@ -302,6 +330,7 @@ Inside `TilingGlass/`:
 | `Onboarding/` | First-run Accessibility permission flow. |
 | `WindowDriver/` | The Accessibility API wrapper (`AccessibilityElement`), window move/resize logic (`WindowMover`), and screen enumeration / coordinate bridging (`ScreenService`). |
 | `Input/` | Global mouse/modifier event monitoring (`DragMonitor`) and the drag → overlay → snap state machine (`DragCoordinator`). |
+| `Editor/` | The visual layout editor window and canvas. |
 | `Overlay/` | The per-screen Liquid Glass zone panels. |
 | `Tiling/` | `TilingEngine` — turns a zone selection or a keyboard direction into an actual window move. |
 | `Hotkeys/` | Global keyboard shortcut registration. |
@@ -387,7 +416,6 @@ Deferred from v0.1, but the architecture is built to accommodate them:
 
 - Windows 11-style snap assistant (a picker that appears at the top of the
   screen on any drag, no modifier required)
-- A visual layout editor (click to split/merge zones, matching Tiling Shell's)
 - Screen-edge tiling (drag to an edge/corner without a modifier)
 - Window suggestions to fill the remaining empty zones after a snap
 - Smart resize — dragging the shared edge between two tiled windows resizes

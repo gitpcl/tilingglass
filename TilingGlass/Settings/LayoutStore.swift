@@ -45,6 +45,40 @@ final class LayoutStore: ObservableObject {
         objectWillChange.send()
     }
 
+    // MARK: - Editing
+
+    /// True when `id` names one of the built-in layouts (which can be
+    /// overridden by a custom layout of the same id, but never deleted).
+    func isBuiltin(id: String) -> Bool {
+        BuiltinLayouts.all.contains { $0.id == id }
+    }
+
+    /// True when a custom layout with this id exists (including one that
+    /// overrides a builtin).
+    func hasCustomLayout(id: String) -> Bool {
+        customLayouts.contains { $0.id == id }
+    }
+
+    /// Inserts or replaces (by id) a custom layout and persists the set.
+    /// The layout should already have its `groups` recomputed and validate.
+    func saveCustomLayout(_ layout: Layout) {
+        var merged = customLayouts
+        if let index = merged.firstIndex(where: { $0.id == layout.id }) {
+            merged[index] = layout
+        } else {
+            merged.append(layout)
+        }
+        customLayouts = merged
+        persist()
+    }
+
+    /// Deletes a custom layout by id. Builtins can't be deleted — deleting a
+    /// custom layout that overrode a builtin makes the builtin reappear.
+    func deleteCustomLayout(id: String) {
+        customLayouts.removeAll { $0.id == id }
+        persist()
+    }
+
     // MARK: - Import / export
 
     /// Imports layouts from Tiling Shell JSON, adding them to the custom set.

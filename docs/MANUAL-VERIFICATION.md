@@ -74,6 +74,33 @@ If this works, the Accessibility + coordinate-flip foundation is correct.
 15. Settings › Launch at login: toggle on, confirm it appears in System
     Settings › General › Login Items.
 
+## Layout editor
+
+The editing math (splits, merges, boundary clamping, groups) is unit-tested in
+TilingCore; this checklist covers the interactive canvas.
+
+E1. Menu-bar icon › **New Layout…** — the editor opens with one full-screen
+    zone and an empty name field; Save is disabled until a name is entered.
+E2. Click the zone — it splits into left/right halves. Option-click one half —
+    it splits into top/bottom. Right-click a zone — the context menu offers
+    Split Horizontally / Split Vertically / Delete Zone.
+E3. Delete a zone that has a clean neighbor — the neighbor absorbs the space.
+    Build an arrangement where no neighbor spans the zone's full edge (e.g.
+    split one side twice) and delete the large zone — an inline error appears
+    and the layout is unchanged.
+E4. Drag the shared edge between two zones — both resize live and stop at the
+    5% minimum. In a 2x2 arrangement, drag the vertical mid-line in the top
+    half — only the top pair moves.
+E5. Name it and Save — it appears in the menu's layout list and in the
+    **Edit Layout** submenu; select it on a screen and ⌃-drag a window —
+    the overlay shows the new zones.
+E6. Menu › **Edit Layout › Equal split** (a built-in), change something, Save —
+    the built-in is overridden. Re-open it — a **Restore Built-in** button
+    appears; clicking it restores the original.
+E7. Export layouts — the saved custom layout is in the JSON with non-empty
+    `groups`; re-import the file — no errors, layout unchanged.
+E8. Quit and relaunch — custom layouts and per-screen selections persist.
+
 ## Multi-monitor & robustness (Phase 7)
 
 16. With two displays, assign different layouts per screen (menu shows a section

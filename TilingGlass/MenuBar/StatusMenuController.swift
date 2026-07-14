@@ -15,6 +15,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     /// Called with a debug action identifier (temporary, for phase validation).
     var onDebugAction: ((DebugAction) -> Void)?
+    /// Called when the user wants to create a new layout in the editor.
+    var onNewLayout: (() -> Void)?
+    /// Called when the user wants to edit an existing layout (by id).
+    var onEditLayout: ((String) -> Void)?
 
     enum DebugAction {
         case moveFocusedLeftHalf
@@ -86,6 +90,23 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     private func addLayoutFileItems(to menu: NSMenu) {
+        let newItem = NSMenuItem(title: "New Layout…", action: #selector(newLayout), keyEquivalent: "")
+        newItem.target = self
+        menu.addItem(newItem)
+
+        let editItem = NSMenuItem(title: "Edit Layout", action: nil, keyEquivalent: "")
+        let editSubmenu = NSMenu()
+        for layout in layoutStore.layouts {
+            let item = NSMenuItem(title: layout.id, action: #selector(editLayout(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = layout.id
+            editSubmenu.addItem(item)
+        }
+        editItem.submenu = editSubmenu
+        menu.addItem(editItem)
+
+        menu.addItem(.separator())
+
         let importItem = NSMenuItem(title: "Import Layouts…", action: #selector(importLayouts), keyEquivalent: "")
         importItem.target = self
         menu.addItem(importItem)
@@ -128,6 +149,15 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func selectLayout(_ sender: NSMenuItem) {
         guard let selection = sender.representedObject as? LayoutSelection else { return }
         layoutStore.selectLayout(id: selection.layoutID, forScreen: selection.screenUUID)
+    }
+
+    @objc private func newLayout() {
+        onNewLayout?()
+    }
+
+    @objc private func editLayout(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        onEditLayout?(id)
     }
 
     @objc private func importLayouts() {
