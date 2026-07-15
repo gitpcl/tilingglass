@@ -10,6 +10,7 @@ hand. This checklist walks through it.
 
 1. Build and launch:
    ```sh
+   cp project.local.example.yml project.local.yml   # once per clone
    xcodegen generate
    xcodebuild -project TilingGlass.xcodeproj -scheme TilingGlass \
      -configuration Debug -derivedDataPath build build
@@ -117,7 +118,7 @@ E8. Quit and relaunch — custom layouts and per-screen selections persist.
 
 ## If Accessibility stops working after a rebuild
 
-The dev signing identity is pinned in `project.yml` to keep the grant sticky. If
+Pin a dev signing identity in `project.local.yml` to keep the grant sticky. If
 it still resets:
 
 ```sh

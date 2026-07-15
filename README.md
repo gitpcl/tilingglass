@@ -101,9 +101,10 @@ There's no signed release yet — build it yourself:
 ```sh
 brew install xcodegen   # once, if you don't have it
 
-git clone <this-repo> tilingglass
+git clone https://github.com/gitpcl/tilingglass.git
 cd tilingglass
 
+cp project.local.example.yml project.local.yml   # once per clone
 xcodegen generate
 xcodebuild -project TilingGlass.xcodeproj -scheme TilingGlass \
   -configuration Debug -derivedDataPath build build
@@ -118,29 +119,23 @@ etc.).
 
 ### Code signing (local dev)
 
-`project.yml` pins a code-signing identity by SHA-1 so the Accessibility
-permission survives rebuilds — an ad-hoc signature changes on every build and
-silently resets the grant, which makes windows just stop moving after a
-rebuild with no obvious cause. That identity is machine-specific: on any
-machine other than the one it was pinned on, the build will fail signing
-outright. Fix it one of two ways:
+Machine-specific signing lives in `project.local.yml`, which is gitignored —
+the one-time `cp` above creates it from the committed example. The example
+defaults sign **ad-hoc**, which builds anywhere with zero setup, but an ad-hoc
+signature changes on every build and macOS silently revokes the Accessibility
+grant each time — windows just stop moving after a rebuild until you re-grant.
 
-**Permanent (edit the tracked file):** replace the SHA-1 in `project.yml`
-(`CODE_SIGN_IDENTITY[sdk=macosx*]`) with one of your own, found via:
+For day-to-day development, pin a stable identity in your `project.local.yml`
+so the grant survives rebuilds. Find yours with:
 
 ```sh
 security find-identity -v -p codesigning
 ```
 
-**One-off (no file edit, nothing to accidentally commit):** override signing on
-the command line. Accessibility permission will need to be re-granted after an
-ad-hoc build, and again on every subsequent ad-hoc rebuild:
-
-```sh
-xcodebuild -project TilingGlass.xcodeproj -scheme TilingGlass \
-  -configuration Debug -derivedDataPath build build \
-  CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="-" DEVELOPMENT_TEAM=""
-```
+then follow the template in `project.local.example.yml` (team id, manual
+style, and the certificate pinned by SHA-1 — pinning by hash avoids Xcode
+mis-resolving ambiguous certificate names). Re-run `xcodegen generate` after
+changing it.
 
 If the Accessibility grant ever gets wedged during development:
 
@@ -380,11 +375,11 @@ layer.
 ## Troubleshooting
 
 **Windows stopped snapping / moving after I rebuilt the app.** The
-Accessibility grant is tied to the app's code signature. If you're using the
-one-off ad-hoc signing override from [Building](#installation--building), this
-is expected on every rebuild — re-grant Accessibility. If you're using the
-pinned identity in `project.yml` and it's your own, this shouldn't happen; if
-it does, reset and re-grant:
+Accessibility grant is tied to the app's code signature. With the default
+ad-hoc signing from `project.local.example.yml`, this is expected on every
+rebuild — re-grant Accessibility, or pin a stable identity in your
+`project.local.yml` (see [Code signing](#code-signing-local-dev)). If you've
+pinned one and it still happens, reset and re-grant:
 
 ```sh
 tccutil reset Accessibility com.pedrolopes.tilingglass
@@ -409,9 +404,9 @@ case (`AXEnhancedUserInterface`); a window that reports back a different size
 than requested still gets positioned at the correct top-left corner even if it
 can't fully match the zone's dimensions.
 
-**Build fails on someone else's machine with a signing error.** See
-[Code signing (local dev)](#code-signing-local-dev) — the pinned identity is
-machine-specific.
+**`xcodegen generate` fails with "project.local.yml couldn't be opened".**
+Run the one-time bootstrap: `cp project.local.example.yml project.local.yml`
+(see [Code signing (local dev)](#code-signing-local-dev)).
 
 ## Roadmap
 

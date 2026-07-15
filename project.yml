@@ -1,24 +1,21 @@
 name: TilingGlass
 
+# Machine-specific code signing lives in project.local.yml (gitignored).
+# Bootstrap once per clone:  cp project.local.example.yml project.local.yml
+# then optionally pin your own signing identity there — see that file and the
+# README's "Code signing" section. (XcodeGen has no optional includes, so the
+# local file must exist for `xcodegen generate` to run.)
+include:
+  - project.local.yml
+
 options:
   bundleIdPrefix: com.pedrolopes
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
 
-# Project-wide settings. Signing lives here (not just on the app target) so that
-# Swift Package targets built as dependencies — e.g. KeyboardShortcuts' resource
-# bundle — inherit a development team and identity instead of failing to sign.
 settings:
   base:
-    DEVELOPMENT_TEAM: YOUR_TEAM_ID
-    CODE_SIGN_STYLE: Manual
-    # Local dev signing pinned by SHA-1: the generic "Apple Development" name is
-    # ambiguous on this machine (two matching certs) and Xcode falls back to a
-    # non-existent "Mac Development" cert. This is machine-specific — replace via
-    # `security find-identity -v -p codesigning`. A stable identity keeps the
-    # Accessibility grant sticky across rebuilds. Distribution uses Developer ID.
-    "CODE_SIGN_IDENTITY[sdk=macosx*]": "SHA1_OF_YOUR_CERTIFICATE"
     SWIFT_VERSION: "6.0"
 
 packages:

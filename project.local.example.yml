@@ -1,0 +1,34 @@
+# Machine-specific signing configuration. Bootstrap:
+#
+#   cp project.local.example.yml project.local.yml
+#
+# project.local.yml is gitignored — put your real signing identity there,
+# never in project.yml.
+#
+# The defaults below sign ad-hoc, which builds out of the box on any machine.
+# The trade-off: an ad-hoc signature changes on every build, so macOS silently
+# revokes the Accessibility grant each rebuild and you must re-grant it
+# (System Settings → Privacy & Security → Accessibility) before windows move
+# again.
+#
+# For day-to-day development, pin a stable identity instead so the grant
+# survives rebuilds. List your identities with:
+#
+#   security find-identity -v -p codesigning
+#
+# then replace the settings below, e.g.:
+#
+#   settings:
+#     base:
+#       DEVELOPMENT_TEAM: YOUR_TEAM_ID
+#       CODE_SIGN_STYLE: Manual
+#       "CODE_SIGN_IDENTITY[sdk=macosx*]": "SHA1_OF_YOUR_CERTIFICATE"
+#
+# The SHA-1 pin (rather than a name like "Apple Development") avoids Xcode
+# mis-resolving ambiguous certificate names. Signing must be at the project
+# level so SPM dependency targets (e.g. KeyboardShortcuts' resource bundle)
+# inherit it too.
+settings:
+  base:
+    CODE_SIGN_STYLE: Manual
+    "CODE_SIGN_IDENTITY[sdk=macosx*]": "-"

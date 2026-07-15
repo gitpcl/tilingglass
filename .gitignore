@@ -15,3 +15,6 @@ Packages/*/.build/
 # User settings
 xcuserdata/
 *.xcuserstate
+
+# Machine-specific signing (bootstrap: cp project.local.example.yml project.local.yml)
+project.local.yml
