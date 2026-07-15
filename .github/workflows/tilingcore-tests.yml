@@ -10,6 +10,7 @@ on:
     paths:
       - "Packages/TilingCore/**"
       - ".github/workflows/tilingcore-tests.yml"
+  workflow_dispatch:
 
 jobs:
   test:
