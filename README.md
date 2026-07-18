@@ -1,6 +1,8 @@
-# TilingGlass
+<p align="center">
+  <img src="Design/tilingglass-header.png" alt="TilingGlass — Tile every window. See through every pane." width="800">
+</p>
 
-**Tile every window. See through every pane.**
+# TilingGlass
 
 A macOS port of the GNOME [Tiling Shell](https://github.com/domferr/tilingshell)
 extension: FancyZones-style custom tiling layouts, snapped into with a modifier
