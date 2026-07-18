@@ -167,14 +167,16 @@ tccutil reset Accessibility com.pedrolopes.tilingglass
 Click the ▦ icon for:
 
 - **Layout** — the active layout for each connected screen (screen names are
-  shown as section headers when you have more than one display). Click a
-  layout to make it active on that screen.
+  shown as section headers when you have more than one display), each listed
+  with a small wireframe of its zones. Click a layout to make it active on that
+  screen.
 - **Import Layouts… / Export Layouts…** — see
   [Importing and exporting layouts](#importing-and-exporting-layouts).
-- **Debug** — two diagnostic actions useful while developing or troubleshooting:
-  "Move Focused Window → Left Half" (exercises the full window-move pipeline
-  without a drag) and "Toggle Overlay Preview" (shows the zone overlay without
-  needing to drag a window).
+- **Debug** (debug builds only) — two diagnostic actions useful while developing
+  or troubleshooting: "Move Focused Window → Left Half" (exercises the full
+  window-move pipeline without a drag) and "Toggle Overlay Preview" (shows the
+  zone overlay without needing to drag a window). This section is compiled out
+  of Release builds.
 - **Settings…** — see [Settings](#settings).
 - **Quit TilingGlass**.
 

@@ -59,8 +59,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         addLayoutFileItems(to: menu)
 
+        #if DEBUG
         menu.addItem(.separator())
         addDebugItems(to: menu)
+        #endif
 
         menu.addItem(.separator())
         addSettingsItem(to: menu)
@@ -84,6 +86,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             let item = NSMenuItem(title: layout.id, action: #selector(selectLayout(_:)), keyEquivalent: "")
             item.target = self
             item.state = (layout.id == selected.id) ? .on : .off
+            item.image = Self.thumbnail(for: layout)
             item.representedObject = LayoutSelection(screenUUID: screen.uuid, layoutID: layout.id)
             menu.addItem(item)
         }
@@ -99,6 +102,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         for layout in layoutStore.layouts {
             let item = NSMenuItem(title: layout.id, action: #selector(editLayout(_:)), keyEquivalent: "")
             item.target = self
+            item.image = Self.thumbnail(for: layout)
             item.representedObject = layout.id
             editSubmenu.addItem(item)
         }
@@ -130,6 +134,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(item)
     }
 
+    #if DEBUG
     private func addDebugItems(to menu: NSMenu) {
         let debugHeader = NSMenuItem(title: "Debug", action: nil, keyEquivalent: "")
         debugHeader.isEnabled = false
@@ -142,6 +147,31 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let overlay = NSMenuItem(title: "Toggle Overlay Preview", action: #selector(debugToggleOverlay), keyEquivalent: "")
         overlay.target = self
         menu.addItem(overlay)
+    }
+    #endif
+
+    /// A small monochrome wireframe of a layout's zones, shown beside its name so
+    /// layouts read as geometry rather than just text. Template-rendered, so it
+    /// adopts the menu's label color and highlight state automatically.
+    private static func thumbnail(for layout: TilingCore.Layout) -> NSImage {
+        let size = NSSize(width: 30, height: 19)
+        let inset: CGFloat = 0.75
+        let image = NSImage(size: size, flipped: false) { bounds in
+            for tile in layout.tiles {
+                let rect = NSRect(
+                    x: CGFloat(tile.x) * bounds.width + inset,
+                    // Tile coordinates are top-left; NSImage draws bottom-left.
+                    y: CGFloat(1 - tile.y - tile.height) * bounds.height + inset,
+                    width: CGFloat(tile.width) * bounds.width - inset * 2,
+                    height: CGFloat(tile.height) * bounds.height - inset * 2
+                )
+                NSColor.black.setFill()
+                NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2).fill()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     // MARK: - Actions

@@ -21,7 +21,9 @@ final class OverlayController {
 
     /// Shows the overlay on every screen, drawing each screen's resolved layout.
     func show(screens: [ScreenInfo], gaps: Gaps, layoutForScreen: (ScreenInfo) -> Layout) {
-        hide()
+        // A fresh show tears down any prior panels instantly — no cross-fade
+        // between an old arrangement and a new one.
+        teardown(animated: false)
         for screen in screens {
             let layout = layoutForScreen(screen)
             let localRect = CGRect(origin: .zero, size: screen.appKitVisibleFrame.size)
@@ -51,12 +53,37 @@ final class OverlayController {
     }
 
     func hide() {
-        for panel in panels.values {
-            panel.orderOut(nil)
-            panel.close()
-        }
+        teardown(animated: true)
+    }
+
+    /// Removes the current panels. When `animated`, the panels are detached from
+    /// the controller's bookkeeping immediately (so `isShown` reads false and a
+    /// new drag can start at once) but kept alive just long enough to play their
+    /// dissolve before being closed. When not animated they close synchronously.
+    private func teardown(animated: Bool) {
+        guard !panels.isEmpty else { return }
+        let closing = Array(panels.values)
+        let dissolving = Array(states.values)
         panels.removeAll()
         states.removeAll()
         shownLayouts.removeAll()
+
+        guard animated else {
+            for panel in closing { close(panel) }
+            return
+        }
+        // Trigger each panel's dissolve, then close after it finishes. The states
+        // and their hosting views stay retained by `closing` for the duration, so
+        // the fade renders even though the controller no longer tracks them.
+        for state in dissolving { state.visible = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: TGDesign.overlayFadeDuration)
+            for panel in closing { close(panel) }
+        }
+    }
+
+    private func close(_ panel: OverlayPanel) {
+        panel.orderOut(nil)
+        panel.close()
     }
 }
