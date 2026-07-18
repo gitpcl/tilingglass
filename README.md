@@ -1,5 +1,7 @@
 # TilingGlass
 
+**Tile every window. See through every pane.**
+
 A macOS port of the GNOME [Tiling Shell](https://github.com/domferr/tilingshell)
 extension: FancyZones-style custom tiling layouts, snapped into with a modifier
 key and a Liquid Glass overlay, plus full keyboard tiling.

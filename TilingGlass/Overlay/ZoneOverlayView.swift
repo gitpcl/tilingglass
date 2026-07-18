@@ -58,10 +58,7 @@ private struct ZoneTile: View {
             .glassEffect(glass, in: shape)
             .glassEffectID(id, in: namespace)
             .overlay(
-                shape.strokeBorder(
-                    highlighted ? Color.accentColor : TGDesign.idleStroke,
-                    lineWidth: highlighted ? 3 : 1.5
-                )
+                shape.strokeBorder(strokeStyle, lineWidth: highlighted ? 3 : 1.5)
             )
             .scaleEffect(scale, anchor: .center)
             .padding(2)
@@ -73,9 +70,21 @@ private struct ZoneTile: View {
         (highlighted && !reduceMotion) ? TGDesign.highlightScale : 1
     }
 
+    /// A single hover honors the system accent; a span refracts through the brand
+    /// prism gradient.
+    private var strokeStyle: AnyShapeStyle {
+        guard highlighted else { return AnyShapeStyle(TGDesign.idleStroke) }
+        guard spanning else { return AnyShapeStyle(Color.accentColor) }
+        return AnyShapeStyle(
+            LinearGradient(gradient: TGDesign.prism, startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+    }
+
     private var glass: Glass {
         guard highlighted else { return Glass.regular }
-        let opacity = spanning ? TGDesign.spanTintOpacity : TGDesign.singleTintOpacity
-        return Glass.regular.tint(.accentColor.opacity(opacity))
+        let tint = spanning
+            ? TGDesign.prismTint.opacity(TGDesign.spanTintOpacity)
+            : Color.accentColor.opacity(TGDesign.singleTintOpacity)
+        return Glass.regular.tint(tint)
     }
 }

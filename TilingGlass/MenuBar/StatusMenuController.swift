@@ -32,10 +32,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         super.init()
 
         if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "rectangle.split.2x2",
-                accessibilityDescription: "TilingGlass"
-            )
+            button.image = Self.statusItemImage()
+            button.setAccessibilityLabel("TilingGlass")
         }
 
         let menu = NSMenu()
@@ -150,13 +148,36 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
     #endif
 
+    /// The brand mark, monochrome, for the menu-bar item — a rounded tile outline
+    /// with a filled master pane and two outlined stack panes (the brand guide's
+    /// `tgMarkMono`). Template-rendered so the menu bar tints it for light/dark
+    /// and selection, matching every other system status item.
+    private static func statusItemImage() -> NSImage {
+        templateImage(size: NSSize(width: 18, height: 18)) { bounds in
+            // The mark is authored in a 100-unit box with a top-left origin;
+            // scale to the image and flip Y for NSImage's bottom-left origin.
+            let scale = bounds.width / 100
+            func tile(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, radius: CGFloat = 6) -> NSBezierPath {
+                let rect = NSRect(x: x * scale, y: (100 - y - h) * scale, width: w * scale, height: h * scale)
+                let path = NSBezierPath(roundedRect: rect, xRadius: radius * scale, yRadius: radius * scale)
+                path.lineWidth = 4 * scale
+                return path
+            }
+            NSColor.black.set()
+            tile(3.75, 3.75, 92.5, 92.5, radius: 25.25).stroke()  // outer tile outline
+            tile(20, 20, 27, 60).fill()                           // master pane
+            for top: CGFloat in [20, 52] {                        // stack panes
+                tile(53, top, 27, 28).stroke()
+            }
+        }
+    }
+
     /// A small monochrome wireframe of a layout's zones, shown beside its name so
     /// layouts read as geometry rather than just text. Template-rendered, so it
     /// adopts the menu's label color and highlight state automatically.
     private static func thumbnail(for layout: TilingCore.Layout) -> NSImage {
-        let size = NSSize(width: 30, height: 19)
         let inset: CGFloat = 0.75
-        let image = NSImage(size: size, flipped: false) { bounds in
+        return templateImage(size: NSSize(width: 30, height: 19)) { bounds in
             for tile in layout.tiles {
                 let rect = NSRect(
                     x: CGFloat(tile.x) * bounds.width + inset,
@@ -168,6 +189,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 NSColor.black.setFill()
                 NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2).fill()
             }
+        }
+    }
+
+    /// Builds a template `NSImage` (bottom-left origin, tinted by the host) from a
+    /// drawing closure. Shared by the status-item mark and the layout thumbnails.
+    private static func templateImage(size: NSSize, draw: @escaping (NSRect) -> Void) -> NSImage {
+        let image = NSImage(size: size, flipped: false) { bounds in
+            draw(bounds)
             return true
         }
         image.isTemplate = true

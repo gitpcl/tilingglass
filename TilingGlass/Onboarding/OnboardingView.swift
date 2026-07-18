@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import AppKit
 import SwiftUI
 
-/// First-run onboarding content. Kept dependency-free so it can be hosted in a
-/// plain `NSWindow`.
+/// First-run onboarding content. Depends only on injected callbacks and the
+/// running app's icon, so it can be hosted in a plain `NSWindow`.
 struct OnboardingView: View {
     let requestAccess: () -> Void
     let openTilingSettings: () -> Void
@@ -14,9 +15,9 @@ struct OnboardingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 12) {
-                Image(systemName: "rectangle.split.2x2")
-                    .font(.system(size: 34, weight: .regular))
-                    .foregroundStyle(.tint)
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 44, height: 44)
                 VStack(alignment: .leading) {
                     Text("Welcome to TilingGlass").font(.title2).bold()
                     Text("Snap windows into custom zones.").foregroundStyle(.secondary)

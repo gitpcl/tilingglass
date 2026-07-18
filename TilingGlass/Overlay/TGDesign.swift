@@ -32,9 +32,25 @@ enum TGDesign {
     /// Idle (non-highlighted) zone stroke.
     static let idleStroke = Color.white.opacity(0.45)
 
-    /// Glass tint opacity for a single hovered zone vs. a multi-zone span. The
-    /// span is stronger so a merged selection reads as more committed without
-    /// inventing a non-system hue.
+    /// Glass tint opacity for a single hovered zone vs. a multi-zone span.
     static let singleTintOpacity = 0.5
     static let spanTintOpacity = 0.72
+
+    /// The prism's mid tone (#5B8DEF) — the single source for both the gradient's
+    /// middle stop and the span's glass tint, so the two can't drift apart.
+    private static let prismMid = Color(red: 0.357, green: 0.553, blue: 0.937)
+
+    /// The brand "prism" refraction gradient — cyan → blue → violet. Reserved for
+    /// the expressive span (merged multi-zone) selection: a single-zone hover
+    /// stays on the native system accent so the common case honors the user's
+    /// chosen Mac accent, and only a span lights up in TilingGlass's own colors.
+    static let prism = Gradient(colors: [
+        Color(red: 0.310, green: 0.941, blue: 0.894),  // #4FF0E4
+        prismMid,                                       // #5B8DEF
+        Color(red: 0.690, green: 0.549, blue: 1.000),  // #B08CFF
+    ])
+
+    /// The span's single-color glass tint (`Glass.tint` takes one color, not a
+    /// gradient — the gradient carries the stroke).
+    static let prismTint = prismMid
 }
